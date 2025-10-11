@@ -1,0 +1,64 @@
+import { useParams, useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useStocks } from "@/contexts/StockContext";
+import { BusinessOverview } from "@/components/stock/BusinessOverview";
+import { Financials } from "@/components/stock/Financials";
+import { Valuation } from "@/components/stock/Valuation";
+import { Story } from "@/components/stock/Story";
+
+export default function StockDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { getStock } = useStocks();
+
+  const stock = getStock(id || "");
+
+  if (!stock) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <p className="text-muted-foreground">Stock not found</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div>
+          <h1 className="text-4xl font-bold">{stock.symbol}</h1>
+          <p className="text-muted-foreground mt-1">{stock.companyName}</p>
+        </div>
+      </div>
+
+      <Tabs defaultValue="business" className="space-y-6">
+        <TabsList className="bg-card border border-border">
+          <TabsTrigger value="business">Business Overview</TabsTrigger>
+          <TabsTrigger value="financials">Financials</TabsTrigger>
+          <TabsTrigger value="valuation">Valuation</TabsTrigger>
+          <TabsTrigger value="story">Story</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="business">
+          <BusinessOverview stock={stock} />
+        </TabsContent>
+
+        <TabsContent value="financials">
+          <Financials stock={stock} />
+        </TabsContent>
+
+        <TabsContent value="valuation">
+          <Valuation stock={stock} />
+        </TabsContent>
+
+        <TabsContent value="story">
+          <Story stock={stock} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
