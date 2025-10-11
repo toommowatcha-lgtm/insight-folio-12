@@ -1,11 +1,19 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
-import { Stock, FinancialData } from "@/types/stock";
+import { Stock, FinancialData, CustomMetric } from "@/types/stock";
 import { useStocks } from "@/contexts/StockContext";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Plus, Save, TrendingUp, TrendingDown } from "lucide-react";
+import { Plus, Save, TrendingUp, TrendingDown, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   LineChart,
   Line,
@@ -26,6 +34,8 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
   const [viewMode, setViewMode] = useState<"quarterly" | "annual">("quarterly");
   const [editing, setEditing] = useState(false);
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>(["revenue", "netIncome"]);
+  const [showAddMetric, setShowAddMetric] = useState(false);
+  const [newMetricLabel, setNewMetricLabel] = useState("");
 
   const [financials, setFinancials] = useState<FinancialData[]>(
     stock.financials || [
@@ -45,8 +55,12 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
     ]
   );
 
+  const [customMetrics, setCustomMetrics] = useState<CustomMetric[]>(
+    stock.customMetrics || []
+  );
+
   const handleSave = () => {
-    updateStock(stock.id, { financials });
+    updateStock(stock.id, { financials, customMetrics });
     setEditing(false);
   };
 
@@ -67,6 +81,50 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
     setFinancials([...financials, newPeriod]);
   };
 
+  const addCustomMetric = () => {
+    if (!newMetricLabel.trim()) return;
+    
+    const key = newMetricLabel.toLowerCase().replace(/\s+/g, "_");
+    const colors = [
+      "hsl(var(--chart-5))",
+      "hsl(var(--chart-1))",
+      "hsl(var(--chart-2))",
+      "hsl(var(--chart-3))",
+      "hsl(var(--chart-4))",
+    ];
+    const color = colors[customMetrics.length % colors.length];
+    
+    const newMetric: CustomMetric = {
+      key,
+      label: newMetricLabel,
+      color,
+    };
+    
+    setCustomMetrics([...customMetrics, newMetric]);
+    
+    // Initialize the metric in all periods
+    const updatedFinancials = financials.map(fin => ({
+      ...fin,
+      [key]: 0,
+    }));
+    setFinancials(updatedFinancials);
+    
+    setNewMetricLabel("");
+    setShowAddMetric(false);
+  };
+
+  const removeCustomMetric = (key: string) => {
+    setCustomMetrics(customMetrics.filter(m => m.key !== key));
+    setSelectedMetrics(selectedMetrics.filter(m => m !== key));
+    
+    // Remove from financials data
+    const updatedFinancials = financials.map(fin => {
+      const { [key]: removed, ...rest } = fin;
+      return rest as FinancialData;
+    });
+    setFinancials(updatedFinancials);
+  };
+
   const updateFinancial = (index: number, field: string, value: string) => {
     const updated = [...financials];
     updated[index] = { ...updated[index], [field]: field === "period" ? value : parseFloat(value) || 0 };
@@ -84,11 +142,27 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
     );
   };
 
-  const metrics = [
+  const defaultMetrics = [
     { key: "revenue", label: "Revenue", color: "hsl(var(--chart-1))" },
     { key: "grossProfit", label: "Gross Profit", color: "hsl(var(--chart-2))" },
     { key: "netIncome", label: "Net Income", color: "hsl(var(--chart-3))" },
     { key: "freeCashFlow", label: "Free Cash Flow", color: "hsl(var(--chart-4))" },
+  ];
+
+  const allMetrics = [...defaultMetrics, ...customMetrics];
+
+  const allFinancialKeys = [
+    "revenue",
+    "grossProfit",
+    "operatingIncome",
+    "netIncome",
+    "rdExpense",
+    "smExpense",
+    "gaExpense",
+    "freeCashFlow",
+    "capex",
+    "sharesOutstanding",
+    ...customMetrics.map(m => m.key),
   ];
 
   return (
@@ -121,7 +195,7 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
         </div>
       </div>
 
-      <Card className="p-6 bg-gradient-to-br from-card to-card/50 overflow-x-auto">
+      <Card className="p-6 bg-card border-border overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border">
@@ -142,69 +216,104 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
             </tr>
           </thead>
           <tbody>
-            {[
-              "revenue",
-              "grossProfit",
-              "operatingIncome",
-              "netIncome",
-              "rdExpense",
-              "smExpense",
-              "gaExpense",
-              "freeCashFlow",
-              "capex",
-              "sharesOutstanding",
-            ].map((key) => (
-              <tr key={key} className="border-b border-border hover:bg-muted/30">
-                <td className="p-3 font-medium capitalize">
-                  {key.replace(/([A-Z])/g, " $1").trim()}
-                </td>
-                {financials.map((fin, idx) => {
-                  const value = fin[key] as number;
-                  const prevValue = idx > 0 ? (financials[idx - 1][key] as number) : 0;
-                  const change = calculateChange(value, prevValue);
+            {allFinancialKeys.map((key) => {
+              const customMetric = customMetrics.find(m => m.key === key);
+              return (
+                <tr key={key} className="border-b border-border hover:bg-muted/30">
+                  <td className="p-3 font-medium capitalize flex items-center gap-2">
+                    {customMetric ? customMetric.label : key.replace(/([A-Z])/g, " $1").trim()}
+                    {customMetric && editing && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => removeCustomMetric(key)}
+                        className="h-6 w-6 p-0"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </td>
+                  {financials.map((fin, idx) => {
+                    const value = (fin[key] as number) || 0;
+                    const prevValue = idx > 0 ? ((financials[idx - 1][key] as number) || 0) : 0;
+                    const change = calculateChange(value, prevValue);
 
-                  return (
-                    <td key={idx} className="p-3 text-right">
-                      {editing ? (
-                        <Input
-                          type="number"
-                          value={value}
-                          onChange={(e) => updateFinancial(idx, key, e.target.value)}
-                          className="w-32 text-right bg-background"
-                        />
-                      ) : (
-                        <div className="space-y-1">
-                          <div className="font-mono">${value.toLocaleString()}M</div>
-                          {idx > 0 && (
-                            <div
-                              className={`text-xs flex items-center justify-end gap-1 ${
-                                change >= 0 ? "text-success" : "text-destructive"
-                              }`}
-                            >
-                              {change >= 0 ? (
-                                <TrendingUp className="h-3 w-3" />
-                              ) : (
-                                <TrendingDown className="h-3 w-3" />
-                              )}
-                              {change.toFixed(1)}%
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+                    return (
+                      <td key={idx} className="p-3 text-right">
+                        {editing ? (
+                          <Input
+                            type="number"
+                            value={value}
+                            onChange={(e) => updateFinancial(idx, key, e.target.value)}
+                            className="w-32 text-right bg-background"
+                          />
+                        ) : (
+                          <div className="space-y-1">
+                            <div className="font-mono">${value.toLocaleString()}M</div>
+                            {idx > 0 && (
+                              <div
+                                className={`text-xs flex items-center justify-end gap-1 ${
+                                  change >= 0 ? "text-success" : "text-destructive"
+                                }`}
+                              >
+                                {change >= 0 ? (
+                                  <TrendingUp className="h-3 w-3" />
+                                ) : (
+                                  <TrendingDown className="h-3 w-3" />
+                                )}
+                                {change.toFixed(1)}%
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
+
+        {editing && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <Dialog open={showAddMetric} onOpenChange={setShowAddMetric}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Add Custom Metric
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Custom Metric</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="metric-name">Metric Name</Label>
+                    <Input
+                      id="metric-name"
+                      placeholder="e.g., ARPU, DAU, Operating Margin"
+                      value={newMetricLabel}
+                      onChange={(e) => setNewMetricLabel(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && addCustomMetric()}
+                    />
+                  </div>
+                  <Button onClick={addCustomMetric} className="w-full">
+                    Add Metric
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        )}
       </Card>
 
-      <Card className="p-6 bg-gradient-to-br from-card to-card/50">
+      <Card className="p-6 bg-card border-border">
         <div className="mb-4">
           <h3 className="font-semibold mb-3">Select Metrics to Visualize</h3>
           <div className="flex flex-wrap gap-2">
-            {metrics.map((metric) => (
+            {allMetrics.map((metric) => (
               <Button
                 key={metric.key}
                 variant={selectedMetrics.includes(metric.key) ? "default" : "outline"}
@@ -231,7 +340,7 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
             />
             <Legend />
             {selectedMetrics.map((metricKey) => {
-              const metric = metrics.find((m) => m.key === metricKey);
+              const metric = allMetrics.find((m) => m.key === metricKey);
               return metric ? (
                 <Line
                   key={metricKey}

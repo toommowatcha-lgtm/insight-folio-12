@@ -17,6 +17,7 @@ export interface Stock {
     som: number;
   };
   financials?: FinancialData[];
+  customMetrics?: CustomMetric[];
   valuation?: ValuationData;
   story?: StoryData;
 }
@@ -47,6 +48,12 @@ export interface FinancialData {
   [key: string]: number | string;
 }
 
+export interface CustomMetric {
+  key: string;
+  label: string;
+  color: string;
+}
+
 export interface ValuationData {
   peRatio: number;
   psRatio: number;
@@ -58,8 +65,12 @@ export interface ValuationData {
   bullCase: number;
 }
 
+export interface QuarterlyNote {
+  quarter: string;
+  content: string;
+}
+
 export interface StoryData {
-  narrative: string;
+  quarters: QuarterlyNote[];
   guidanceTone: "Bullish" | "Neutral" | "Bearish";
-  keyHighlights: string[];
 }
