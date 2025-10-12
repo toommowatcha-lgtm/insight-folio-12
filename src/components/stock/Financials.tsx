@@ -1,12 +1,19 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Stock, FinancialData, CustomMetric } from "@/types/stock";
 import { useStocks } from "@/contexts/StockContext";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Plus, Save, TrendingUp, TrendingDown, X } from "lucide-react";
+import { Plus, Save, TrendingUp, TrendingDown, X, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -46,7 +53,7 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
     stock.customMetrics || []
   );
 
-  const allFinancialKeys = [
+  const allFinancialKeys = useMemo(() => [
     "revenue",
     "grossProfit",
     "operatingIncome",
@@ -58,10 +65,10 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
     "capex",
     "sharesOutstanding",
     ...customMetrics.map(m => m.key),
-  ];
+  ], [customMetrics]);
 
   // Auto-calculate annual data from quarterly
-  const calculateAnnualData = (): FinancialData[] => {
+  const calculateAnnualData = useMemo((): FinancialData[] => {
     const quarterlyData = financials.filter(f => f.period.startsWith("Q"));
     const yearMap: { [year: string]: FinancialData[] } = {};
     
@@ -87,11 +94,30 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
         return annual;
       })
       .sort((a, b) => a.period.localeCompare(b.period));
-  };
+  }, [financials, allFinancialKeys]);
 
-  const displayData = viewMode === "quarterly" 
+  const displayData = useMemo(() => viewMode === "quarterly" 
     ? financials.filter(f => f.period.startsWith("Q")).sort((a, b) => a.period.localeCompare(b.period))
-    : calculateAnnualData();
+    : calculateAnnualData, [viewMode, financials, calculateAnnualData]);
+
+  // Calculate KPIs
+  const kpis = useMemo(() => {
+    if (displayData.length < 2) return null;
+    
+    const latest = displayData[displayData.length - 1];
+    const previous = displayData[displayData.length - 2];
+    
+    const revenueGrowth = previous.revenue ? 
+      (((latest.revenue - previous.revenue) / previous.revenue) * 100) : 0;
+    
+    const netProfitMargin = latest.revenue ? 
+      ((latest.netIncome / latest.revenue) * 100) : 0;
+    
+    const fcfMargin = latest.revenue ? 
+      ((latest.freeCashFlow / latest.revenue) * 100) : 0;
+    
+    return { revenueGrowth, netProfitMargin, fcfMargin };
+  }, [displayData]);
 
   const handleSave = () => {
     updateStock(stock.id, { financials, customMetrics });
@@ -184,6 +210,22 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
 
   const allMetrics = [...defaultMetrics, ...customMetrics];
 
+  const exportToCSV = () => {
+    const headers = ["Period", ...allFinancialKeys];
+    const rows = displayData.map(d => [
+      d.period,
+      ...allFinancialKeys.map(key => d[key] || 0)
+    ]);
+    
+    const csv = [headers, ...rows].map(row => row.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${stock.symbol}_financials_${viewMode}.csv`;
+    a.click();
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -195,6 +237,10 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
         </Tabs>
 
         <div className="flex gap-2">
+          <Button onClick={exportToCSV} size="sm" variant="outline" className="gap-2">
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
           {editing && (
             <Button onClick={addPeriod} size="sm" variant="outline" className="gap-2">
               <Plus className="h-4 w-4" />
@@ -213,6 +259,29 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
           )}
         </div>
       </div>
+
+      {kpis && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="p-4 bg-card border-border">
+            <div className="text-sm text-muted-foreground mb-1">Revenue Growth (YoY)</div>
+            <div className={`text-2xl font-bold ${kpis.revenueGrowth >= 0 ? 'text-success' : 'text-destructive'}`}>
+              {kpis.revenueGrowth >= 0 ? '+' : ''}{kpis.revenueGrowth.toFixed(1)}%
+            </div>
+          </Card>
+          <Card className="p-4 bg-card border-border">
+            <div className="text-sm text-muted-foreground mb-1">Net Profit Margin</div>
+            <div className="text-2xl font-bold text-foreground">
+              {kpis.netProfitMargin.toFixed(1)}%
+            </div>
+          </Card>
+          <Card className="p-4 bg-card border-border">
+            <div className="text-sm text-muted-foreground mb-1">Free Cash Flow Margin</div>
+            <div className="text-2xl font-bold text-foreground">
+              {kpis.fcfMargin.toFixed(1)}%
+            </div>
+          </Card>
+        </div>
+      )}
 
       <Card className="p-6 bg-card border-border overflow-x-auto">
         {viewMode === "annual" && (
@@ -340,8 +409,8 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
       </Card>
 
       <Card className="p-6 bg-card border-border">
-        <div className="mb-4">
-          <h3 className="font-semibold mb-3">Select Metrics to Visualize</h3>
+        <div className="mb-6">
+          <Label className="text-sm font-semibold mb-3 block">Select Metrics to Compare</Label>
           <div className="flex flex-wrap gap-2">
             {allMetrics.map((metric) => (
               <Button
@@ -349,6 +418,7 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
                 variant={selectedMetrics.includes(metric.key) ? "default" : "outline"}
                 size="sm"
                 onClick={() => toggleMetric(metric.key)}
+                className="transition-all"
               >
                 {metric.label}
               </Button>
