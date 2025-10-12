@@ -80,6 +80,20 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
     stock.customMetrics || []
   );
 
+  const allFinancialKeys = [
+    "revenue",
+    "grossProfit",
+    "operatingIncome",
+    "netIncome",
+    "rdExpense",
+    "smExpense",
+    "gaExpense",
+    "freeCashFlow",
+    "capex",
+    "sharesOutstanding",
+    ...customMetrics.map(m => m.key),
+  ];
+
   const handleSave = () => {
     updateStock(stock.id, { financials, customMetrics });
     setEditing(false);
@@ -170,20 +184,6 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
   ];
 
   const allMetrics = [...defaultMetrics, ...customMetrics];
-
-  const allFinancialKeys = [
-    "revenue",
-    "grossProfit",
-    "operatingIncome",
-    "netIncome",
-    "rdExpense",
-    "smExpense",
-    "gaExpense",
-    "freeCashFlow",
-    "capex",
-    "sharesOutstanding",
-    ...customMetrics.map(m => m.key),
-  ];
 
   return (
     <div className="space-y-6">
