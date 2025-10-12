@@ -37,23 +37,44 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
   const [showAddMetric, setShowAddMetric] = useState(false);
   const [newMetricLabel, setNewMetricLabel] = useState("");
 
-  const [financials, setFinancials] = useState<FinancialData[]>(
-    stock.financials || [
-      {
-        period: "Q1 2024",
-        revenue: 0,
-        grossProfit: 0,
-        operatingIncome: 0,
-        netIncome: 0,
-        rdExpense: 0,
-        smExpense: 0,
-        gaExpense: 0,
-        freeCashFlow: 0,
-        sharesOutstanding: 0,
-        capex: 0,
-      },
-    ]
-  );
+  const defaultFinancials: FinancialData[] = [
+    { period: "Q1 2024", revenue: 0, grossProfit: 0, operatingIncome: 0, netIncome: 0, rdExpense: 0, smExpense: 0, gaExpense: 0, freeCashFlow: 0, sharesOutstanding: 0, capex: 0 },
+  ];
+
+  const [financials, setFinancials] = useState<FinancialData[]>(stock.financials || defaultFinancials);
+
+  // Auto-calculate annual data from quarterly
+  const calculateAnnualData = (): FinancialData[] => {
+    const quarterlyData = financials.filter(f => f.period.startsWith("Q"));
+    const yearMap: { [year: string]: FinancialData[] } = {};
+    
+    quarterlyData.forEach(q => {
+      const year = q.period.split(" ")[1];
+      if (!yearMap[year]) yearMap[year] = [];
+      yearMap[year].push(q);
+    });
+
+    return Object.entries(yearMap)
+      .filter(([_, quarters]) => quarters.length === 4)
+      .map(([year, quarters]) => {
+        const annual: FinancialData = { period: `FY ${year}`, revenue: 0, grossProfit: 0, operatingIncome: 0, netIncome: 0, rdExpense: 0, smExpense: 0, gaExpense: 0, freeCashFlow: 0, sharesOutstanding: 0, capex: 0 };
+        
+        allFinancialKeys.forEach(key => {
+          if (key === "sharesOutstanding") {
+            annual[key] = quarters[quarters.length - 1][key] as number || 0;
+          } else {
+            annual[key] = quarters.reduce((sum, q) => sum + ((q[key] as number) || 0), 0);
+          }
+        });
+        
+        return annual;
+      })
+      .sort((a, b) => a.period.localeCompare(b.period));
+  };
+
+  const displayData = viewMode === "quarterly" 
+    ? financials.filter(f => f.period.startsWith("Q")).sort((a, b) => a.period.localeCompare(b.period))
+    : calculateAnnualData();
 
   const [customMetrics, setCustomMetrics] = useState<CustomMetric[]>(
     stock.customMetrics || []
@@ -65,48 +86,47 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
   };
 
   const addPeriod = () => {
+    const quarters = financials.filter(f => f.period.startsWith("Q"));
+    const latestQuarter = quarters.length > 0 ? quarters[quarters.length - 1].period : "Q4 2023";
+    const [q, year] = latestQuarter.split(" ");
+    const quarterNum = parseInt(q.substring(1));
+    
+    let newQuarter: string;
+    let newYear: string;
+    
+    if (quarterNum === 4) {
+      newQuarter = "Q1";
+      newYear = String(parseInt(year) + 1);
+    } else {
+      newQuarter = `Q${quarterNum + 1}`;
+      newYear = year;
+    }
+    
     const newPeriod: FinancialData = {
-      period: viewMode === "quarterly" ? `Q${financials.length + 1} 2024` : `FY ${2024 + financials.length}`,
-      revenue: 0,
-      grossProfit: 0,
-      operatingIncome: 0,
-      netIncome: 0,
-      rdExpense: 0,
-      smExpense: 0,
-      gaExpense: 0,
-      freeCashFlow: 0,
-      sharesOutstanding: 0,
-      capex: 0,
+      period: `${newQuarter} ${newYear}`,
+      revenue: 0, grossProfit: 0, operatingIncome: 0, netIncome: 0,
+      rdExpense: 0, smExpense: 0, gaExpense: 0, freeCashFlow: 0,
+      sharesOutstanding: 0, capex: 0,
     };
+    
+    customMetrics.forEach(m => {
+      newPeriod[m.key] = 0;
+    });
+    
     setFinancials([...financials, newPeriod]);
   };
 
   const addCustomMetric = () => {
     if (!newMetricLabel.trim()) return;
     
-    const key = newMetricLabel.toLowerCase().replace(/\s+/g, "_");
-    const colors = [
-      "hsl(var(--chart-5))",
-      "hsl(var(--chart-1))",
-      "hsl(var(--chart-2))",
-      "hsl(var(--chart-3))",
-      "hsl(var(--chart-4))",
-    ];
+    const key = newMetricLabel.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_-]/g, "");
+    const colors = ["hsl(var(--chart-5))", "hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))"];
     const color = colors[customMetrics.length % colors.length];
     
-    const newMetric: CustomMetric = {
-      key,
-      label: newMetricLabel,
-      color,
-    };
-    
+    const newMetric: CustomMetric = { key, label: newMetricLabel, color };
     setCustomMetrics([...customMetrics, newMetric]);
     
-    // Initialize the metric in all periods
-    const updatedFinancials = financials.map(fin => ({
-      ...fin,
-      [key]: 0,
-    }));
+    const updatedFinancials = financials.map(fin => ({ ...fin, [key]: 0 }));
     setFinancials(updatedFinancials);
     
     setNewMetricLabel("");
@@ -196,16 +216,24 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
       </div>
 
       <Card className="p-6 bg-card border-border overflow-x-auto">
+        {viewMode === "annual" && (
+          <div className="mb-4 p-3 bg-muted/30 rounded-md text-sm text-muted-foreground">
+            💡 Annual data is automatically calculated from quarterly data when all 4 quarters are available.
+          </div>
+        )}
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border">
               <th className="text-left p-3 font-semibold">Metric</th>
-              {financials.map((fin, idx) => (
+              {displayData.map((fin, idx) => (
                 <th key={idx} className="text-right p-3 font-semibold">
-                  {editing ? (
+                  {editing && viewMode === "quarterly" ? (
                     <Input
                       value={fin.period}
-                      onChange={(e) => updateFinancial(idx, "period", e.target.value)}
+                      onChange={(e) => {
+                        const realIdx = financials.findIndex(f => f.period === fin.period);
+                        if (realIdx !== -1) updateFinancial(realIdx, "period", e.target.value);
+                      }}
                       className="w-24 text-right bg-background"
                     />
                   ) : (
@@ -233,18 +261,21 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
                       </Button>
                     )}
                   </td>
-                  {financials.map((fin, idx) => {
+                  {displayData.map((fin, idx) => {
                     const value = (fin[key] as number) || 0;
-                    const prevValue = idx > 0 ? ((financials[idx - 1][key] as number) || 0) : 0;
+                    const prevValue = idx > 0 ? ((displayData[idx - 1][key] as number) || 0) : 0;
                     const change = calculateChange(value, prevValue);
 
                     return (
                       <td key={idx} className="p-3 text-right">
-                        {editing ? (
+                        {editing && viewMode === "quarterly" ? (
                           <Input
                             type="number"
                             value={value}
-                            onChange={(e) => updateFinancial(idx, key, e.target.value)}
+                            onChange={(e) => {
+                              const realIdx = financials.findIndex(f => f.period === fin.period);
+                              if (realIdx !== -1) updateFinancial(realIdx, key, e.target.value);
+                            }}
                             className="w-32 text-right bg-background"
                           />
                         ) : (
@@ -327,7 +358,7 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
         </div>
 
         <ResponsiveContainer width="100%" height={400}>
-          <LineChart data={financials}>
+          <LineChart data={displayData}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis dataKey="period" stroke="hsl(var(--muted-foreground))" />
             <YAxis stroke="hsl(var(--muted-foreground))" />

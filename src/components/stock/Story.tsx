@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Stock, QuarterlyNote } from "@/types/stock";
 import { useStocks } from "@/contexts/StockContext";
 import { Button } from "@/components/ui/button";
-import { Save, TrendingUp, Minus, TrendingDown, Bold, Italic, List } from "lucide-react";
+import { Save, TrendingUp, Minus, TrendingDown, Bold, Italic, List, Plus } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -39,6 +39,29 @@ export const Story: React.FC<StoryProps> = ({ stock }) => {
     quarters: stock.story?.quarters || defaultQuarters,
     guidanceTone: stock.story?.guidanceTone || "Neutral",
   });
+
+  const addPeriod = () => {
+    const quarters = story.quarters;
+    const latestQuarter = quarters.length > 0 ? quarters[quarters.length - 1].quarter : "Q4 2023";
+    const [q, year] = latestQuarter.split(" ");
+    const quarterNum = parseInt(q.substring(1));
+    
+    let newQuarter: string;
+    let newYear: string;
+    
+    if (quarterNum === 4) {
+      newQuarter = "Q1";
+      newYear = String(parseInt(year) + 1);
+    } else {
+      newQuarter = `Q${quarterNum + 1}`;
+      newYear = year;
+    }
+    
+    setStory({
+      ...story,
+      quarters: [...quarters, { quarter: `${newQuarter} ${newYear}`, content: "" }]
+    });
+  };
 
   const handleSave = () => {
     updateStock(stock.id, { story });
@@ -142,7 +165,15 @@ export const Story: React.FC<StoryProps> = ({ stock }) => {
       </div>
 
       <Card className="p-6 bg-card border-border">
-        <Label className="text-lg font-semibold mb-4 block">Quarterly Earnings Notes</Label>
+        <div className="flex items-center justify-between mb-4">
+          <Label className="text-lg font-semibold">Quarterly Earnings Notes</Label>
+          {editing && (
+            <Button onClick={addPeriod} size="sm" variant="outline" className="gap-2">
+              <Plus className="h-4 w-4" />
+              Add Period
+            </Button>
+          )}
+        </div>
         <Accordion type="multiple" className="w-full">
           {story.quarters.map((quarter, index) => (
             <AccordionItem key={index} value={`item-${index}`} className="border-border">
