@@ -42,6 +42,23 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
   ];
 
   const [financials, setFinancials] = useState<FinancialData[]>(stock.financials || defaultFinancials);
+  const [customMetrics, setCustomMetrics] = useState<CustomMetric[]>(
+    stock.customMetrics || []
+  );
+
+  const allFinancialKeys = [
+    "revenue",
+    "grossProfit",
+    "operatingIncome",
+    "netIncome",
+    "rdExpense",
+    "smExpense",
+    "gaExpense",
+    "freeCashFlow",
+    "capex",
+    "sharesOutstanding",
+    ...customMetrics.map(m => m.key),
+  ];
 
   // Auto-calculate annual data from quarterly
   const calculateAnnualData = (): FinancialData[] => {
@@ -75,24 +92,6 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
   const displayData = viewMode === "quarterly" 
     ? financials.filter(f => f.period.startsWith("Q")).sort((a, b) => a.period.localeCompare(b.period))
     : calculateAnnualData();
-
-  const [customMetrics, setCustomMetrics] = useState<CustomMetric[]>(
-    stock.customMetrics || []
-  );
-
-  const allFinancialKeys = [
-    "revenue",
-    "grossProfit",
-    "operatingIncome",
-    "netIncome",
-    "rdExpense",
-    "smExpense",
-    "gaExpense",
-    "freeCashFlow",
-    "capex",
-    "sharesOutstanding",
-    ...customMetrics.map(m => m.key),
-  ];
 
   const handleSave = () => {
     updateStock(stock.id, { financials, customMetrics });
