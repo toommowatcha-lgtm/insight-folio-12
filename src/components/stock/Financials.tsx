@@ -339,12 +339,14 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
                         {editing && viewMode === "quarterly" ? (
                           <Input
                             type="number"
+                            step="any"
                             value={value}
                             onChange={(e) => {
                               const realIdx = financials.findIndex(f => f.period === fin.period);
                               if (realIdx !== -1) updateFinancial(realIdx, key, e.target.value);
                             }}
                             className="w-32 text-right bg-background"
+                            placeholder="0"
                           />
                         ) : (
                           <div className="space-y-1">
