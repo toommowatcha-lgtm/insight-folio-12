@@ -186,7 +186,12 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
 
   const updateFinancial = (index: number, field: string, value: string) => {
     const updated = [...financials];
-    updated[index] = { ...updated[index], [field]: field === "period" ? value : parseFloat(value) || 0 };
+    if (field === "period") {
+      updated[index] = { ...updated[index], [field]: value };
+    } else {
+      const numValue = parseFloat(value);
+      updated[index] = { ...updated[index], [field]: isNaN(numValue) ? 0 : numValue };
+    }
     setFinancials(updated);
   };
 
