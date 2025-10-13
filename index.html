@@ -1,7 +1,19 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
+
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#111827">
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/service-worker.js')
+        .then(() => console.log('✅ Service Worker registered'))
+        .catch(err => console.error('❌ SW failed:', err));
+    });
+  }
+</script>
+ <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Stock Dashboard - Track & Analyze Your Investments</title>
     <meta name="description" content="Modern stock analysis dashboard for tracking, comparing, and evaluating your investment portfolio with financial data visualization." />
