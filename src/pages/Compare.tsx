@@ -159,10 +159,12 @@ export default function Compare() {
                       {stock.dayChange.toFixed(2)}%
                     </td>
                     <td className="p-3 text-right">
-                      {stock.valuation?.peRatio ? stock.valuation.peRatio.toFixed(2) : "—"}
+                      {stock.valuation?.normalizedCurrentPE ? stock.valuation.normalizedCurrentPE.toFixed(2) : "—"}
                     </td>
                     <td className="p-3 text-right">
-                      {stock.valuation?.psRatio ? stock.valuation.psRatio.toFixed(2) : "—"}
+                      {stock.valuation?.currentSales && stock.valuation.currentSales > 0 
+                        ? ((stock.currentPrice * stock.valuation.sharesOutstanding) / stock.valuation.currentSales).toFixed(2) 
+                        : "—"}
                     </td>
                   </tr>
                 );
