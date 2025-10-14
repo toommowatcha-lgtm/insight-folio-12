@@ -43,10 +43,20 @@ export const BusinessOverview: React.FC<BusinessOverviewProps> = ({ stock }) => 
     som: stock.tam?.som || 0,
   });
 
+  const [thinkForMarket, setThinkForMarket] = useState({
+    tam: stock.thinkForMarket?.tam || "",
+    marketShare: stock.thinkForMarket?.marketShare || "",
+    unitEconomics: stock.thinkForMarket?.unitEconomics || "",
+  });
+
+  const [tippingPoint, setTippingPoint] = useState(stock.tippingPoint || "");
+
   const handleSave = () => {
     updateStock(stock.id, {
       businessOverview: businessData,
       tam,
+      thinkForMarket,
+      tippingPoint,
     });
     setEditing(false);
   };
@@ -242,6 +252,53 @@ export const BusinessOverview: React.FC<BusinessOverviewProps> = ({ stock }) => 
             />
           </div>
         </div>
+      </Card>
+
+      <Card className="p-6 bg-gradient-to-br from-card to-card/50">
+        <Label className="text-lg font-semibold mb-4 block">Think for Market</Label>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Total Addressable Market (TAM)</Label>
+            <Textarea
+              value={thinkForMarket.tam}
+              onChange={(e) => setThinkForMarket({ ...thinkForMarket, tam: e.target.value })}
+              disabled={!editing}
+              className="min-h-[100px] bg-background"
+              placeholder="Describe the total addressable market..."
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Market Share</Label>
+            <Textarea
+              value={thinkForMarket.marketShare}
+              onChange={(e) => setThinkForMarket({ ...thinkForMarket, marketShare: e.target.value })}
+              disabled={!editing}
+              className="min-h-[100px] bg-background"
+              placeholder="Analyze market share dynamics..."
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Unit Economics</Label>
+            <Textarea
+              value={thinkForMarket.unitEconomics}
+              onChange={(e) => setThinkForMarket({ ...thinkForMarket, unitEconomics: e.target.value })}
+              disabled={!editing}
+              className="min-h-[100px] bg-background"
+              placeholder="Describe unit economics..."
+            />
+          </div>
+        </div>
+      </Card>
+
+      <Card className="p-6 bg-gradient-to-br from-card to-card/50">
+        <Label className="text-lg font-semibold">Tipping Point Bar</Label>
+        <Textarea
+          value={tippingPoint}
+          onChange={(e) => setTippingPoint(e.target.value)}
+          disabled={!editing}
+          className="mt-3 min-h-[120px] bg-background"
+          placeholder="Describe key inflection points or triggers for growth..."
+        />
       </Card>
     </div>
   );

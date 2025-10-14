@@ -16,6 +16,12 @@ export interface Stock {
     sam: number;
     som: number;
   };
+  thinkForMarket?: {
+    tam: string;
+    marketShare: string;
+    unitEconomics: string;
+  };
+  tippingPoint?: string;
   financials?: FinancialData[];
   customMetrics?: CustomMetric[];
   valuation?: ValuationData;

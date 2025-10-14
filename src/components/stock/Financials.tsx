@@ -357,7 +357,9 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
                           />
                         ) : (
                           <div className="space-y-1">
-                            <div className="font-mono">${value.toLocaleString()}M</div>
+                            <div className={`font-mono ${value < 0 ? "text-destructive" : ""}`}>
+                              {value < 0 ? "-" : ""}${Math.abs(value).toLocaleString()}M
+                            </div>
                             {idx > 0 && (
                               <div
                                 className={`text-xs flex items-center justify-end gap-1 ${
