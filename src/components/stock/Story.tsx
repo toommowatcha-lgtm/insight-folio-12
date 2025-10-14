@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -6,6 +6,7 @@ import { Stock, QuarterlyNote } from "@/types/stock";
 import { useStocks } from "@/contexts/StockContext";
 import { Button } from "@/components/ui/button";
 import { Save, TrendingUp, Minus, TrendingDown, Bold, Italic, List, Plus } from "lucide-react";
+import { sortPeriods } from "@/lib/periodSort";
 import {
   Select,
   SelectContent,
@@ -64,9 +65,20 @@ export const Story: React.FC<StoryProps> = ({ stock }) => {
   };
 
   const handleSave = () => {
-    updateStock(stock.id, { story });
+    // Sort quarters chronologically before saving
+    const sortedStory = {
+      ...story,
+      quarters: sortPeriods(story.quarters, 'quarter')
+    };
+    updateStock(stock.id, { story: sortedStory });
     setEditing(false);
   };
+
+  // Sort quarters chronologically for display
+  const sortedQuarters = useMemo(() => 
+    sortPeriods(story.quarters, 'quarter'), 
+    [story.quarters]
+  );
 
   const updateQuarter = (index: number, content: string) => {
     const updatedQuarters = [...story.quarters];
@@ -175,7 +187,9 @@ export const Story: React.FC<StoryProps> = ({ stock }) => {
           )}
         </div>
         <Accordion type="multiple" className="w-full">
-          {story.quarters.map((quarter, index) => (
+          {sortedQuarters.map((quarter, index) => {
+            const originalIndex = story.quarters.findIndex(q => q.quarter === quarter.quarter);
+            return (
             <AccordionItem key={index} value={`item-${index}`} className="border-border">
               <AccordionTrigger className="hover:no-underline">
                 <div className="flex items-center gap-3">
@@ -194,7 +208,7 @@ export const Story: React.FC<StoryProps> = ({ stock }) => {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => formatText(index, "bold")}
+                        onClick={() => formatText(originalIndex, "bold")}
                         title="Bold (wrap selection in **)"
                       >
                         <Bold className="h-4 w-4" />
@@ -202,7 +216,7 @@ export const Story: React.FC<StoryProps> = ({ stock }) => {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => formatText(index, "italic")}
+                        onClick={() => formatText(originalIndex, "italic")}
                         title="Italic (wrap selection in *)"
                       >
                         <Italic className="h-4 w-4" />
@@ -210,7 +224,7 @@ export const Story: React.FC<StoryProps> = ({ stock }) => {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => formatText(index, "bullet")}
+                        onClick={() => formatText(originalIndex, "bullet")}
                         title="Bullet point (add •)"
                       >
                         <List className="h-4 w-4" />
@@ -218,9 +232,9 @@ export const Story: React.FC<StoryProps> = ({ stock }) => {
                     </div>
                   )}
                   <Textarea
-                    id={`quarter-${index}`}
+                    id={`quarter-${originalIndex}`}
                     value={quarter.content}
-                    onChange={(e) => updateQuarter(index, e.target.value)}
+                    onChange={(e) => updateQuarter(originalIndex, e.target.value)}
                     disabled={!editing}
                     className="min-h-[200px] bg-background font-mono text-sm"
                     placeholder={`Add notes from ${quarter.quarter} earnings call...\n\nTips:\n• Use **text** for bold\n• Use *text* for italic\n• Use • for bullet points`}
@@ -246,7 +260,8 @@ export const Story: React.FC<StoryProps> = ({ stock }) => {
                 </div>
               </AccordionContent>
             </AccordionItem>
-          ))}
+            );
+          })}
         </Accordion>
       </Card>
     </div>

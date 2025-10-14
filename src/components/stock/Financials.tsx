@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Save, TrendingUp, TrendingDown, X, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { sortPeriods } from "@/lib/periodSort";
 import {
   Select,
   SelectContent,
@@ -78,7 +79,7 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
       yearMap[year].push(q);
     });
 
-    return Object.entries(yearMap)
+    const annualData = Object.entries(yearMap)
       .filter(([_, quarters]) => quarters.length === 4)
       .map(([year, quarters]) => {
         const annual: FinancialData = { period: `FY ${year}`, revenue: 0, grossProfit: 0, operatingIncome: 0, netIncome: 0, rdExpense: 0, smExpense: 0, gaExpense: 0, freeCashFlow: 0, sharesOutstanding: 0, capex: 0 };
@@ -92,12 +93,13 @@ export const Financials: React.FC<FinancialsProps> = ({ stock }) => {
         });
         
         return annual;
-      })
-      .sort((a, b) => a.period.localeCompare(b.period));
+      });
+    
+    return sortPeriods(annualData);
   }, [financials, allFinancialKeys]);
 
   const displayData = useMemo(() => viewMode === "quarterly" 
-    ? financials.filter(f => f.period.startsWith("Q")).sort((a, b) => a.period.localeCompare(b.period))
+    ? sortPeriods(financials.filter(f => f.period.startsWith("Q")))
     : calculateAnnualData, [viewMode, financials, calculateAnnualData]);
 
   // Calculate KPIs
