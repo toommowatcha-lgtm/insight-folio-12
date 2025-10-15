@@ -159,10 +159,15 @@ export default function Compare() {
                       {stock.dayChange.toFixed(2)}%
                     </td>
                     <td className="p-3 text-right">
-                      {stock.valuation?.normalizedCurrentPE ? stock.valuation.normalizedCurrentPE.toFixed(2) : "—"}
+                      {stock.valuation?.currentSales && stock.valuation?.sharesOutstanding && stock.valuation?.netProfitMargin ? (() => {
+                        const normalizedNetProfit = stock.valuation.currentSales * (stock.valuation.netProfitMargin / 100);
+                        const normalizedEPS = normalizedNetProfit / stock.valuation.sharesOutstanding;
+                        const pe = normalizedEPS > 0 ? stock.currentPrice / normalizedEPS : 0;
+                        return pe > 0 ? pe.toFixed(2) : "—";
+                      })() : "—"}
                     </td>
                     <td className="p-3 text-right">
-                      {stock.valuation?.currentSales && stock.valuation.currentSales > 0 
+                      {stock.valuation?.currentSales && stock.valuation?.sharesOutstanding && stock.valuation.currentSales > 0 
                         ? ((stock.currentPrice * stock.valuation.sharesOutstanding) / stock.valuation.currentSales).toFixed(2) 
                         : "—"}
                     </td>

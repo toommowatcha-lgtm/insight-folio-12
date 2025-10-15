@@ -5,9 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Stock } from "@/types/stock";
 import { useStocks } from "@/contexts/StockContext";
 import { Button } from "@/components/ui/button";
-import { Save, Download, RotateCcw, Info } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
-import { Tooltip as TooltipUI, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Save, Download, RotateCcw } from "lucide-react";
 
 interface ValuationProps {
   stock: Stock;
@@ -23,20 +21,13 @@ export const Valuation: React.FC<ValuationProps> = ({ stock }) => {
     currentSales: 0,
     salesGrowthCAGR: 15,
     netProfitMargin: 20,
-    normalizedNetProfitMargin: 20,
     sharesOutstanding: 1000000,
-    normalizedEPS: 0,
-    normalizedCurrentPE: 25,
-    expectedPEAtYearEnd: 30,
-    peExpansionPercent: 20,
-    shareRepurchasePercent: 2,
-    dividendYieldPercent: 0,
-    shareIssuePercent: 0,
+    expectedPEAtYearEnd: 25,
+    shareRepurchaseDividendIssue: 2,
+    expectedReturn: 15,
     marginOfSafetyPercent: 25,
     tam: stock.tam?.tam || 0,
     sam: stock.tam?.sam || 0,
-    som: stock.tam?.som || 0,
-    penetrationPercent: 5,
   };
 
   const [valuation, setValuation] = useState({
@@ -44,64 +35,88 @@ export const Valuation: React.FC<ValuationProps> = ({ stock }) => {
     ...stock.valuation,
   });
 
-  // Core calculations
+  // Auto-calculated fields
   const calculations = useMemo(() => {
-    const projectedSales = valuation.currentSales * Math.pow(1 + valuation.salesGrowthCAGR / 100, valuation.investmentHorizon);
-    const margin = valuation.normalizedNetProfitMargin || valuation.netProfitMargin;
-    const netProfitAtYearEnd = projectedSales * (margin / 100);
-    const adjustedShares = valuation.sharesOutstanding * (1 - valuation.shareRepurchasePercent / 100 + valuation.shareIssuePercent / 100);
-    const epsAtYearEnd = netProfitAtYearEnd / adjustedShares;
-    const normalizedEPS = valuation.normalizedEPS || epsAtYearEnd;
+    // 1. Normalized Net Profit Margin
+    const normalizedNetProfitMargin = valuation.currentSales * (valuation.netProfitMargin / 100);
     
-    // Base scenario
-    const fairPriceBase = normalizedEPS * valuation.normalizedCurrentPE;
-    const fairPriceWithPE = normalizedEPS * valuation.expectedPEAtYearEnd;
-    const fairPriceWithMOS = fairPriceBase * (1 - valuation.marginOfSafetyPercent / 100);
+    // 2. Normalized EPS
+    const normalizedEPS = valuation.sharesOutstanding > 0 
+      ? normalizedNetProfitMargin / valuation.sharesOutstanding 
+      : 0;
     
-    // Returns
-    const priceReturn = valuation.currentPrice > 0 ? ((fairPriceWithPE - valuation.currentPrice) / valuation.currentPrice) * 100 : 0;
-    const buybackImpact = valuation.shareRepurchasePercent;
-    const totalReturn = priceReturn + valuation.dividendYieldPercent + buybackImpact;
-    const annualizedReturn = valuation.investmentHorizon > 0 ? (Math.pow(1 + totalReturn / 100, 1 / valuation.investmentHorizon) - 1) * 100 : 0;
+    // 3. Normalized Current P/E
+    const normalizedCurrentPE = normalizedEPS > 0 
+      ? valuation.currentPrice / normalizedEPS 
+      : 0;
     
-    // Scenarios
-    const bearPE = valuation.bearScenario?.peRatio || valuation.normalizedCurrentPE * 0.7;
-    const bearGrowth = valuation.bearScenario?.growthRate || valuation.salesGrowthCAGR * 0.5;
-    const bearMargin = valuation.bearScenario?.margin || margin * 0.8;
+    // 4. %P/E Expansion
+    const peExpansionPercent = (normalizedCurrentPE > 0 && valuation.investmentHorizon > 0)
+      ? (Math.pow(valuation.expectedPEAtYearEnd / normalizedCurrentPE, 1 / valuation.investmentHorizon) - 1) * 100
+      : 0;
     
-    const bearSales = valuation.currentSales * Math.pow(1 + bearGrowth / 100, valuation.investmentHorizon);
-    const bearNetProfit = bearSales * (bearMargin / 100);
-    const bearEPS = bearNetProfit / adjustedShares;
-    const bearPrice = bearEPS * bearPE;
+    // 5. Sales @Year End
+    const salesAtYearEnd = valuation.currentSales * Math.pow(1 + valuation.salesGrowthCAGR / 100, valuation.investmentHorizon);
     
-    const bullPE = valuation.bullScenario?.peRatio || valuation.expectedPEAtYearEnd * 1.3;
-    const bullGrowth = valuation.bullScenario?.growthRate || valuation.salesGrowthCAGR * 1.5;
-    const bullMargin = valuation.bullScenario?.margin || margin * 1.2;
+    // 6. %Penetration Rate
+    const penetrationRate = valuation.sam > 0 
+      ? (valuation.tam / valuation.sam) * 100 
+      : 0;
     
-    const bullSales = valuation.currentSales * Math.pow(1 + bullGrowth / 100, valuation.investmentHorizon);
-    const bullNetProfit = bullSales * (bullMargin / 100);
-    const bullEPS = bullNetProfit / adjustedShares;
-    const bullPrice = bullEPS * bullPE;
+    // 7. %Market Share
+    const marketShare = valuation.sam > 0 
+      ? (salesAtYearEnd / valuation.sam) * 100 
+      : 0;
     
-    // TAM/SAM/SOM
-    const salesAtFullPenetration = valuation.som * (valuation.penetrationPercent / 100);
-    const impliedMarketShare = valuation.currentSales > 0 ? (valuation.currentSales / valuation.sam) * 100 : 0;
+    // 8. Net Profit @Year End
+    const netProfitAtYearEnd = salesAtYearEnd * (valuation.netProfitMargin / 100);
+    
+    // 9. EPS @Year End
+    const adjustedShares = valuation.sharesOutstanding * Math.pow(
+      1 - valuation.shareRepurchaseDividendIssue / 100, 
+      valuation.investmentHorizon
+    );
+    const epsAtYearEnd = adjustedShares > 0 
+      ? (salesAtYearEnd * (valuation.netProfitMargin / 100)) / adjustedShares 
+      : 0;
+    
+    // 10. %EPS Expansion
+    const epsExpansionPercent = (normalizedEPS > 0 && valuation.investmentHorizon > 0)
+      ? (Math.pow(epsAtYearEnd / normalizedEPS, 1 / valuation.investmentHorizon) - 1) * 100
+      : 0;
+    
+    // 11. Total Return
+    const totalReturn = valuation.salesGrowthCAGR + peExpansionPercent + 
+      (peExpansionPercent * epsExpansionPercent / 100) + 
+      valuation.shareRepurchaseDividendIssue;
+    
+    // 12. Dif.
+    const dif = totalReturn - valuation.expectedReturn;
+    
+    // 13. Fair Price
+    const fairPrice = valuation.investmentHorizon > 0
+      ? (epsAtYearEnd * valuation.expectedPEAtYearEnd) / 
+        Math.pow(1 + valuation.expectedReturn / 100, valuation.investmentHorizon)
+      : 0;
+    
+    // 14. Fair Price (Include MOS)
+    const fairPriceWithMOS = fairPrice * (1 - valuation.marginOfSafetyPercent / 100);
     
     return {
-      projectedSales,
+      normalizedNetProfitMargin,
+      normalizedEPS,
+      normalizedCurrentPE,
+      peExpansionPercent,
+      salesAtYearEnd,
+      penetrationRate,
+      marketShare,
       netProfitAtYearEnd,
       epsAtYearEnd,
-      normalizedEPS,
-      fairPriceBase,
-      fairPriceWithPE,
-      fairPriceWithMOS,
-      priceReturn,
+      epsExpansionPercent,
       totalReturn,
-      annualizedReturn,
-      bearPrice,
-      bullPrice,
-      salesAtFullPenetration,
-      impliedMarketShare,
+      dif,
+      fairPrice,
+      fairPriceWithMOS,
     };
   }, [valuation]);
 
@@ -118,35 +133,35 @@ export const Valuation: React.FC<ValuationProps> = ({ stock }) => {
     const data = [
       ['Valuation Analysis', stock.symbol],
       [''],
-      ['INPUTS', ''],
+      ['EDITABLE INPUTS', ''],
       ['Current Price', valuation.currentPrice],
-      ['Investment Horizon (years)', valuation.investmentHorizon],
+      ['Investment Horizon (Years)', valuation.investmentHorizon],
       ['Current Sales (MB)', valuation.currentSales],
-      ['Sales Growth CAGR (%)', valuation.salesGrowthCAGR],
-      ['Net Profit Margin (%)', valuation.netProfitMargin],
-      ['Normalized Net Profit Margin (%)', valuation.normalizedNetProfitMargin],
-      ['Shares Outstanding', valuation.sharesOutstanding],
-      ['Normalized EPS', valuation.normalizedEPS],
-      ['Normalized Current P/E', valuation.normalizedCurrentPE],
-      ['Expected P/E at Year-End', valuation.expectedPEAtYearEnd],
-      ['Share Repurchase (%)', valuation.shareRepurchasePercent],
-      ['Dividend Yield (%)', valuation.dividendYieldPercent],
-      ['Margin of Safety (%)', valuation.marginOfSafetyPercent],
+      ['%Sales Growth (CAGR)', valuation.salesGrowthCAGR],
+      ['%Net Profit Margin', valuation.netProfitMargin],
+      ['No. of Shares (Include Warrant)', valuation.sharesOutstanding],
+      ['P/E @Year End', valuation.expectedPEAtYearEnd],
+      ['Share Repurchase / Dividend Paid / Share Issue', valuation.shareRepurchaseDividendIssue],
+      ['Expected Return', valuation.expectedReturn],
+      ['Margin of Safety', valuation.marginOfSafetyPercent],
+      ['TAM', valuation.tam],
+      ['SAM', valuation.sam],
       [''],
-      ['CALCULATED OUTPUTS', ''],
-      ['Projected Sales @ Year-End', calculations.projectedSales.toFixed(2)],
-      ['Net Profit @ Year-End', calculations.netProfitAtYearEnd.toFixed(2)],
-      ['EPS @ Year-End', calculations.epsAtYearEnd.toFixed(2)],
-      ['Fair Price (Base)', calculations.fairPriceBase.toFixed(2)],
-      ['Fair Price (with P/E expansion)', calculations.fairPriceWithPE.toFixed(2)],
-      ['Fair Price (with MOS)', calculations.fairPriceWithMOS.toFixed(2)],
-      ['Expected Total Return (%)', calculations.totalReturn.toFixed(2)],
-      ['Annualized Return (%)', calculations.annualizedReturn.toFixed(2)],
-      [''],
-      ['SCENARIOS', ''],
-      ['Bear Case Price', calculations.bearPrice.toFixed(2)],
-      ['Base Case Price', calculations.fairPriceWithPE.toFixed(2)],
-      ['Bull Case Price', calculations.bullPrice.toFixed(2)],
+      ['AUTO-CALCULATED OUTPUTS', ''],
+      ['Normalized Net Profit Margin', calculations.normalizedNetProfitMargin.toFixed(2)],
+      ['Normalized EPS', calculations.normalizedEPS.toFixed(2)],
+      ['Normalized Current P/E', calculations.normalizedCurrentPE.toFixed(2)],
+      ['%P/E Expansion', calculations.peExpansionPercent.toFixed(2)],
+      ['Sales @Year End', calculations.salesAtYearEnd.toFixed(2)],
+      ['%Penetration Rate', calculations.penetrationRate.toFixed(2)],
+      ['%Market Share', calculations.marketShare.toFixed(2)],
+      ['Net Profit @Year End', calculations.netProfitAtYearEnd.toFixed(2)],
+      ['EPS @Year End', calculations.epsAtYearEnd.toFixed(2)],
+      ['%EPS Expansion', calculations.epsExpansionPercent.toFixed(2)],
+      ['Total Return', calculations.totalReturn.toFixed(2)],
+      ['Dif.', calculations.dif.toFixed(2)],
+      ['Fair Price', calculations.fairPrice.toFixed(2)],
+      ['Fair Price (Include MOS)', calculations.fairPriceWithMOS.toFixed(2)],
     ];
     
     const csv = data.map(row => row.join(',')).join('\n');
@@ -158,42 +173,12 @@ export const Valuation: React.FC<ValuationProps> = ({ stock }) => {
     a.click();
   };
 
-  const scenarioData = [
-    { case: "Bear", value: calculations.bearPrice, fill: "hsl(var(--destructive))" },
-    { case: "Base", value: calculations.fairPriceWithPE, fill: "hsl(var(--chart-1))" },
-    { case: "Bull", value: calculations.bullPrice, fill: "hsl(var(--chart-2))" },
-  ];
-
-  const sensitivityData = useMemo(() => {
-    const data = [];
-    const peRange = [15, 20, 25, 30, 35, 40];
-    const growthRange = [5, 10, 15, 20, 25, 30];
-    
-    for (const pe of peRange) {
-      for (const growth of growthRange) {
-        const sales = valuation.currentSales * Math.pow(1 + growth / 100, valuation.investmentHorizon);
-        const margin = valuation.normalizedNetProfitMargin || valuation.netProfitMargin;
-        const profit = sales * (margin / 100);
-        const eps = profit / valuation.sharesOutstanding;
-        const price = eps * pe;
-        data.push({ pe, growth, price });
-      }
-    }
-    return data;
-  }, [valuation]);
-
-  const FormulaTooltip = ({ formula }: { formula: string }) => (
-    <TooltipProvider>
-      <TooltipUI>
-        <TooltipTrigger asChild>
-          <Info className="h-4 w-4 text-muted-foreground cursor-help inline ml-1" />
-        </TooltipTrigger>
-        <TooltipContent className="max-w-sm">
-          <p className="text-xs">{formula}</p>
-        </TooltipContent>
-      </TooltipUI>
-    </TooltipProvider>
-  );
+  const formatNumber = (num: number, decimals: number = 2) => {
+    return num.toLocaleString('en-US', { 
+      minimumFractionDigits: decimals, 
+      maximumFractionDigits: decimals 
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -221,81 +206,70 @@ export const Valuation: React.FC<ValuationProps> = ({ stock }) => {
         )}
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <Card className="bg-gradient-to-br from-card to-card/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center">
-              Fair Price (Base)
-              <FormulaTooltip formula="Normalized EPS × Normalized P/E" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${calculations.fairPriceBase.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-card to-card/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center">
-              Fair Price (MOS)
-              <FormulaTooltip formula="Fair Price × (1 - Margin of Safety %)" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${calculations.fairPriceWithMOS.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-card to-card/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center">
-              Expected Return
-              <FormulaTooltip formula="(Fair Price - Current Price) / Current Price + Dividend + Buyback" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${calculations.totalReturn >= 0 ? 'text-success' : 'text-destructive'}`}>
-              {calculations.totalReturn.toFixed(1)}%
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {calculations.annualizedReturn.toFixed(1)}% annualized
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-card to-card/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center">
-              EPS @ Year-End
-              <FormulaTooltip formula="Net Profit @ Year-End / Shares Outstanding" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${calculations.epsAtYearEnd.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-card to-card/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center">
-              Net Profit @ Year-End
-              <FormulaTooltip formula="Projected Sales × Net Profit Margin" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${(calculations.netProfitAtYearEnd / 1000000).toFixed(1)}M</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Input Fields */}
+      {/* Core Valuation Section */}
       <Card className="bg-gradient-to-br from-card to-card/50">
         <CardHeader>
-          <CardTitle>Valuation Inputs</CardTitle>
+          <CardTitle className="text-xl">Core Valuation</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {/* KPI Display */}
+            <div className="lg:col-span-3 grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-4">
+              <Card className="bg-primary/5 border-primary/20">
+                <CardContent className="pt-6">
+                  <div className="text-sm text-muted-foreground mb-1">Fair Price</div>
+                  <div className="text-2xl font-bold">${formatNumber(calculations.fairPrice)}</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-success/5 border-success/20">
+                <CardContent className="pt-6">
+                  <div className="text-sm text-muted-foreground mb-1">Fair Price (Include MOS)</div>
+                  <div className="text-2xl font-bold text-success">${formatNumber(calculations.fairPriceWithMOS)}</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-chart-1/5 border-chart-1/20">
+                <CardContent className="pt-6">
+                  <div className="text-sm text-muted-foreground mb-1">Normalized EPS</div>
+                  <div className="text-2xl font-bold">${formatNumber(calculations.normalizedEPS)}</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-chart-2/5 border-chart-2/20">
+                <CardContent className="pt-6">
+                  <div className="text-sm text-muted-foreground mb-1">Normalized Current P/E</div>
+                  <div className="text-2xl font-bold">{formatNumber(calculations.normalizedCurrentPE)}</div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Calculated Fields (read-only) */}
+            <div className="space-y-2 bg-muted/30 p-3 rounded-md">
+              <Label className="text-xs text-muted-foreground">Normalized Net Profit Margin</Label>
+              <div className="text-lg font-semibold">${formatNumber(calculations.normalizedNetProfitMargin)}M</div>
+              <div className="text-xs text-muted-foreground">= Current Sales × Net Profit Margin %</div>
+            </div>
+
+            <div className="space-y-2 bg-muted/30 p-3 rounded-md">
+              <Label className="text-xs text-muted-foreground">Normalized EPS</Label>
+              <div className="text-lg font-semibold">${formatNumber(calculations.normalizedEPS)}</div>
+              <div className="text-xs text-muted-foreground">= Normalized Net Profit / Shares</div>
+            </div>
+
+            <div className="space-y-2 bg-muted/30 p-3 rounded-md">
+              <Label className="text-xs text-muted-foreground">Normalized Current P/E</Label>
+              <div className="text-lg font-semibold">{formatNumber(calculations.normalizedCurrentPE)}</div>
+              <div className="text-xs text-muted-foreground">= Current Price / Normalized EPS</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Editable Input Fields */}
+      <Card className="bg-gradient-to-br from-card to-card/50">
+        <CardHeader>
+          <CardTitle className="text-xl">Editable Inputs</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-2">
               <Label>Current Price ($)</Label>
               <Input
@@ -308,7 +282,7 @@ export const Valuation: React.FC<ValuationProps> = ({ stock }) => {
             </div>
 
             <div className="space-y-2">
-              <Label>Investment Horizon (years)</Label>
+              <Label>Investment Horizon (Years)</Label>
               <Input
                 type="number"
                 step="any"
@@ -330,7 +304,7 @@ export const Valuation: React.FC<ValuationProps> = ({ stock }) => {
             </div>
 
             <div className="space-y-2">
-              <Label>Sales Growth CAGR (%)</Label>
+              <Label>%Sales Growth (CAGR)</Label>
               <Input
                 type="number"
                 step="any"
@@ -341,7 +315,7 @@ export const Valuation: React.FC<ValuationProps> = ({ stock }) => {
             </div>
 
             <div className="space-y-2">
-              <Label>Net Profit Margin (%)</Label>
+              <Label>%Net Profit Margin</Label>
               <Input
                 type="number"
                 step="any"
@@ -352,18 +326,7 @@ export const Valuation: React.FC<ValuationProps> = ({ stock }) => {
             </div>
 
             <div className="space-y-2">
-              <Label>Normalized Net Profit Margin (%)</Label>
-              <Input
-                type="number"
-                step="any"
-                value={valuation.normalizedNetProfitMargin}
-                onChange={(e) => setValuation({ ...valuation, normalizedNetProfitMargin: parseFloat(e.target.value) || 0 })}
-                disabled={!editing}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Shares Outstanding</Label>
+              <Label>No. of Shares (Include Warrant)</Label>
               <Input
                 type="number"
                 step="any"
@@ -374,30 +337,7 @@ export const Valuation: React.FC<ValuationProps> = ({ stock }) => {
             </div>
 
             <div className="space-y-2">
-              <Label>Normalized EPS ($)</Label>
-              <Input
-                type="number"
-                step="any"
-                value={valuation.normalizedEPS}
-                onChange={(e) => setValuation({ ...valuation, normalizedEPS: parseFloat(e.target.value) || 0 })}
-                disabled={!editing}
-                placeholder="Auto-calculated if 0"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Normalized Current P/E</Label>
-              <Input
-                type="number"
-                step="any"
-                value={valuation.normalizedCurrentPE}
-                onChange={(e) => setValuation({ ...valuation, normalizedCurrentPE: parseFloat(e.target.value) || 0 })}
-                disabled={!editing}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Expected P/E at Year-End</Label>
+              <Label>P/E @Year End</Label>
               <Input
                 type="number"
                 step="any"
@@ -408,45 +348,23 @@ export const Valuation: React.FC<ValuationProps> = ({ stock }) => {
             </div>
 
             <div className="space-y-2">
-              <Label>P/E Expansion (%)</Label>
+              <Label>Share Repurchase / Dividend / Issue (%)</Label>
               <Input
                 type="number"
                 step="any"
-                value={valuation.peExpansionPercent}
-                onChange={(e) => setValuation({ ...valuation, peExpansionPercent: parseFloat(e.target.value) || 0 })}
+                value={valuation.shareRepurchaseDividendIssue}
+                onChange={(e) => setValuation({ ...valuation, shareRepurchaseDividendIssue: parseFloat(e.target.value) || 0 })}
                 disabled={!editing}
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Share Repurchase (%)</Label>
+              <Label>Expected Return (%)</Label>
               <Input
                 type="number"
                 step="any"
-                value={valuation.shareRepurchasePercent}
-                onChange={(e) => setValuation({ ...valuation, shareRepurchasePercent: parseFloat(e.target.value) || 0 })}
-                disabled={!editing}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Dividend Yield (%)</Label>
-              <Input
-                type="number"
-                step="any"
-                value={valuation.dividendYieldPercent}
-                onChange={(e) => setValuation({ ...valuation, dividendYieldPercent: parseFloat(e.target.value) || 0 })}
-                disabled={!editing}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Share Issue (%)</Label>
-              <Input
-                type="number"
-                step="any"
-                value={valuation.shareIssuePercent}
-                onChange={(e) => setValuation({ ...valuation, shareIssuePercent: parseFloat(e.target.value) || 0 })}
+                value={valuation.expectedReturn}
+                onChange={(e) => setValuation({ ...valuation, expectedReturn: parseFloat(e.target.value) || 0 })}
                 disabled={!editing}
               />
             </div>
@@ -463,7 +381,7 @@ export const Valuation: React.FC<ValuationProps> = ({ stock }) => {
             </div>
 
             <div className="space-y-2">
-              <Label>TAM (Total Addressable Market)</Label>
+              <Label>TAM</Label>
               <Input
                 type="number"
                 step="any"
@@ -474,7 +392,7 @@ export const Valuation: React.FC<ValuationProps> = ({ stock }) => {
             </div>
 
             <div className="space-y-2">
-              <Label>SAM (Serviceable Addressable Market)</Label>
+              <Label>SAM</Label>
               <Input
                 type="number"
                 step="any"
@@ -483,101 +401,97 @@ export const Valuation: React.FC<ValuationProps> = ({ stock }) => {
                 disabled={!editing}
               />
             </div>
+          </div>
+        </CardContent>
+      </Card>
 
-            <div className="space-y-2">
-              <Label>SOM (Serviceable Obtainable Market)</Label>
-              <Input
-                type="number"
-                step="any"
-                value={valuation.som}
-                onChange={(e) => setValuation({ ...valuation, som: parseFloat(e.target.value) || 0 })}
-                disabled={!editing}
-              />
+      {/* Return Projection Section */}
+      <Card className="bg-gradient-to-br from-card to-card/50">
+        <CardHeader>
+          <CardTitle className="text-xl">Return Projection</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-2 bg-muted/30 p-3 rounded-md">
+              <Label className="text-xs text-muted-foreground">%P/E Expansion</Label>
+              <div className="text-lg font-semibold">{formatNumber(calculations.peExpansionPercent)}%</div>
+              <div className="text-xs text-muted-foreground">Annualized P/E growth rate</div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Penetration / Market Share (%)</Label>
-              <Input
-                type="number"
-                step="any"
-                value={valuation.penetrationPercent}
-                onChange={(e) => setValuation({ ...valuation, penetrationPercent: parseFloat(e.target.value) || 0 })}
-                disabled={!editing}
-              />
+            <div className="space-y-2 bg-muted/30 p-3 rounded-md">
+              <Label className="text-xs text-muted-foreground">%EPS Expansion</Label>
+              <div className="text-lg font-semibold">{formatNumber(calculations.epsExpansionPercent)}%</div>
+              <div className="text-xs text-muted-foreground">Annualized EPS growth rate</div>
+            </div>
+
+            <div className="space-y-2 bg-muted/30 p-3 rounded-md">
+              <Label className="text-xs text-muted-foreground">Total Return</Label>
+              <div className={`text-lg font-semibold ${calculations.totalReturn >= 0 ? 'text-success' : 'text-destructive'}`}>
+                {formatNumber(calculations.totalReturn)}%
+              </div>
+              <div className="text-xs text-muted-foreground">Expected total return</div>
+            </div>
+
+            <div className="space-y-2 bg-muted/30 p-3 rounded-md">
+              <Label className="text-xs text-muted-foreground">Difference</Label>
+              <div className={`text-lg font-semibold ${calculations.dif >= 0 ? 'text-success' : 'text-destructive'}`}>
+                {formatNumber(calculations.dif)}%
+              </div>
+              <div className="text-xs text-muted-foreground">vs Expected Return</div>
+            </div>
+
+            <div className="space-y-2 bg-muted/30 p-3 rounded-md">
+              <Label className="text-xs text-muted-foreground">EPS @Year End</Label>
+              <div className="text-lg font-semibold">${formatNumber(calculations.epsAtYearEnd)}</div>
+              <div className="text-xs text-muted-foreground">Projected EPS at horizon</div>
+            </div>
+
+            <div className="space-y-2 bg-muted/30 p-3 rounded-md">
+              <Label className="text-xs text-muted-foreground">Net Profit @Year End</Label>
+              <div className="text-lg font-semibold">${formatNumber(calculations.netProfitAtYearEnd)}M</div>
+              <div className="text-xs text-muted-foreground">Projected net profit</div>
+            </div>
+
+            <div className="space-y-2 bg-muted/30 p-3 rounded-md">
+              <Label className="text-xs text-muted-foreground">Sales @Year End</Label>
+              <div className="text-lg font-semibold">${formatNumber(calculations.salesAtYearEnd)}M</div>
+              <div className="text-xs text-muted-foreground">Projected sales at horizon</div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Scenario Cards */}
-      <div className="grid gap-6 md:grid-cols-3">
-        <Card className="bg-gradient-to-br from-destructive/10 to-card border-destructive/20">
-          <CardHeader>
-            <CardTitle className="text-destructive">Bear Case</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div>
-              <div className="text-sm text-muted-foreground">Target Price</div>
-              <div className="text-3xl font-bold text-destructive">${calculations.bearPrice.toFixed(2)}</div>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Conservative assumptions: Lower P/E, reduced growth, margin compression
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-primary/10 to-card border-primary/20">
-          <CardHeader>
-            <CardTitle className="text-primary">Base Case</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div>
-              <div className="text-sm text-muted-foreground">Target Price</div>
-              <div className="text-3xl font-bold text-primary">${calculations.fairPriceWithPE.toFixed(2)}</div>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Expected assumptions: Normal P/E expansion, steady growth
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-success/10 to-card border-success/20">
-          <CardHeader>
-            <CardTitle className="text-success">Bull Case</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div>
-              <div className="text-sm text-muted-foreground">Target Price</div>
-              <div className="text-3xl font-bold text-success">${calculations.bullPrice.toFixed(2)}</div>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Optimistic assumptions: Higher P/E, accelerated growth, margin expansion
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Scenario Chart */}
+      {/* Check Assumptions Section */}
       <Card className="bg-gradient-to-br from-card to-card/50">
         <CardHeader>
-          <CardTitle>Valuation Scenarios</CardTitle>
+          <CardTitle className="text-xl">Check Assumptions</CardTitle>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={scenarioData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="case" stroke="hsl(var(--muted-foreground))" />
-              <YAxis stroke="hsl(var(--muted-foreground))" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "hsl(var(--card))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "8px",
-                }}
-              />
-              <Bar dataKey="value" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2 bg-muted/30 p-3 rounded-md">
+              <Label className="text-xs text-muted-foreground">TAM</Label>
+              <div className="text-lg font-semibold">${formatNumber(valuation.tam, 0)}M</div>
+              <div className="text-xs text-muted-foreground">Total Addressable Market</div>
+            </div>
+
+            <div className="space-y-2 bg-muted/30 p-3 rounded-md">
+              <Label className="text-xs text-muted-foreground">SAM</Label>
+              <div className="text-lg font-semibold">${formatNumber(valuation.sam, 0)}M</div>
+              <div className="text-xs text-muted-foreground">Serviceable Addressable Market</div>
+            </div>
+
+            <div className="space-y-2 bg-muted/30 p-3 rounded-md">
+              <Label className="text-xs text-muted-foreground">%Penetration Rate</Label>
+              <div className="text-lg font-semibold">{formatNumber(calculations.penetrationRate)}%</div>
+              <div className="text-xs text-muted-foreground">TAM / SAM</div>
+            </div>
+
+            <div className="space-y-2 bg-muted/30 p-3 rounded-md">
+              <Label className="text-xs text-muted-foreground">%Market Share</Label>
+              <div className="text-lg font-semibold">{formatNumber(calculations.marketShare)}%</div>
+              <div className="text-xs text-muted-foreground">Sales @Year End / SAM</div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -587,14 +501,22 @@ export const Valuation: React.FC<ValuationProps> = ({ stock }) => {
           <CardTitle>Formula Summary</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
-          <div><strong>Projected Sales:</strong> Current Sales × (1 + CAGR)^Investment Horizon</div>
-          <div><strong>Net Profit @ Year-End:</strong> Projected Sales × Net Profit Margin</div>
-          <div><strong>EPS @ Year-End:</strong> Net Profit / (Shares Outstanding × (1 - Buyback% + Issue%))</div>
-          <div><strong>Fair Price (Base):</strong> Normalized EPS × Normalized P/E</div>
-          <div><strong>Fair Price (with P/E):</strong> EPS @ Year-End × Expected P/E</div>
-          <div><strong>Fair Price (with MOS):</strong> Fair Price × (1 - Margin of Safety%)</div>
-          <div><strong>Total Return:</strong> Price Return + Dividend Yield + Buyback Impact</div>
-          <div><strong>Market Share:</strong> Current Sales / SAM × 100</div>
+          <div className="grid gap-2">
+            <div className="border-b pb-2"><strong>Normalized Net Profit Margin</strong> = Current Sales × (Net Profit Margin / 100)</div>
+            <div className="border-b pb-2"><strong>Normalized EPS</strong> = Normalized Net Profit Margin / No. of Shares</div>
+            <div className="border-b pb-2"><strong>Normalized Current P/E</strong> = Current Price / Normalized EPS</div>
+            <div className="border-b pb-2"><strong>%P/E Expansion</strong> = ((P/E @Year End / Normalized Current P/E) ^ (1 / Investment Horizon)) - 1</div>
+            <div className="border-b pb-2"><strong>Sales @Year End</strong> = Current Sales × ((1 + Sales Growth / 100) ^ Investment Horizon)</div>
+            <div className="border-b pb-2"><strong>%Penetration Rate</strong> = TAM / SAM</div>
+            <div className="border-b pb-2"><strong>%Market Share</strong> = Sales @Year End / SAM</div>
+            <div className="border-b pb-2"><strong>Net Profit @Year End</strong> = Sales @Year End × (Net Profit Margin / 100)</div>
+            <div className="border-b pb-2"><strong>EPS @Year End</strong> = Net Profit @Year End / (Shares × ((1 - Share Repurchase/Dividend/Issue / 100) ^ Investment Horizon))</div>
+            <div className="border-b pb-2"><strong>%EPS Expansion</strong> = ((EPS @Year End / Normalized EPS) ^ (1 / Investment Horizon)) - 1</div>
+            <div className="border-b pb-2"><strong>Total Return</strong> = Sales Growth + P/E Expansion + (P/E Expansion × EPS Expansion) + Share Repurchase/Dividend/Issue</div>
+            <div className="border-b pb-2"><strong>Dif.</strong> = Total Return - Expected Return</div>
+            <div className="border-b pb-2"><strong>Fair Price</strong> = (EPS @Year End × P/E @Year End) / ((1 + Expected Return / 100) ^ Investment Horizon)</div>
+            <div><strong>Fair Price (Include MOS)</strong> = Fair Price × (1 - Margin of Safety / 100)</div>
+          </div>
         </CardContent>
       </Card>
     </div>

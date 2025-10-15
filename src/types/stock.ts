@@ -61,57 +61,19 @@ export interface CustomMetric {
 }
 
 export interface ValuationData {
-  // Current metrics
+  // Editable inputs
   currentPrice: number;
   investmentHorizon: number;
-  
-  // Sales & Growth
   currentSales: number;
   salesGrowthCAGR: number;
-  
-  // Profitability
   netProfitMargin: number;
-  normalizedNetProfitMargin: number;
-  
-  // Shares & EPS
   sharesOutstanding: number;
-  normalizedEPS: number;
-  
-  // P/E metrics
-  normalizedCurrentPE: number;
   expectedPEAtYearEnd: number;
-  peExpansionPercent: number;
-  
-  // Capital allocation
-  shareRepurchasePercent: number;
-  dividendYieldPercent: number;
-  shareIssuePercent: number;
-  
-  // Risk
+  shareRepurchaseDividendIssue: number; // Combined field
+  expectedReturn: number;
   marginOfSafetyPercent: number;
-  
-  // TAM/SAM/SOM
   tam: number;
   sam: number;
-  som: number;
-  penetrationPercent: number;
-  
-  // Scenarios (optional overrides)
-  bearScenario?: {
-    peRatio: number;
-    growthRate: number;
-    margin: number;
-  };
-  baseScenario?: {
-    peRatio: number;
-    growthRate: number;
-    margin: number;
-  };
-  bullScenario?: {
-    peRatio: number;
-    growthRate: number;
-    margin: number;
-  };
 }
 
 export interface QuarterlyNote {
