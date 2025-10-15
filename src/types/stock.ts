@@ -26,6 +26,7 @@ export interface Stock {
   customMetrics?: CustomMetric[];
   valuation?: ValuationData;
   story?: StoryData;
+  riskAssessment?: RiskAssessment;
 }
 
 export interface RevenueSegment {
@@ -36,7 +37,14 @@ export interface RevenueSegment {
 
 export interface MoatPower {
   name: string;
-  description: string;
+  strength: "Weak" | "Normal" | "High" | null;
+}
+
+export interface RiskAssessment {
+  keyBusinessRisks: string;
+  financialRisks: string;
+  managementRisks: string;
+  macroRisks: string;
 }
 
 export interface FinancialData {

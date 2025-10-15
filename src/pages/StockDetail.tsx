@@ -7,6 +7,7 @@ import { BusinessOverview } from "@/components/stock/BusinessOverview";
 import { Financials } from "@/components/stock/Financials";
 import { Valuation } from "@/components/stock/Valuation";
 import { Story } from "@/components/stock/Story";
+import { RiskAssessment } from "@/components/stock/RiskAssessment";
 
 export default function StockDetail() {
   const { id } = useParams();
@@ -41,6 +42,7 @@ export default function StockDetail() {
           <TabsTrigger value="financials">Financials</TabsTrigger>
           <TabsTrigger value="valuation">Valuation</TabsTrigger>
           <TabsTrigger value="story">Story</TabsTrigger>
+          <TabsTrigger value="risk">Risk Assessment</TabsTrigger>
         </TabsList>
 
         <TabsContent value="business">
@@ -57,6 +59,10 @@ export default function StockDetail() {
 
         <TabsContent value="story">
           <Story stock={stock} />
+        </TabsContent>
+
+        <TabsContent value="risk">
+          <RiskAssessment stock={stock} />
         </TabsContent>
       </Tabs>
     </div>

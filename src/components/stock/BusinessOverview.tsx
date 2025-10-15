@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,13 +8,14 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recha
 import { Button } from "@/components/ui/button";
 import { Plus, Save } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 const CHART_COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))"];
 
 const MOAT_POWERS = [
   "Scale Economies",
-  "Network Effects",
-  "Counter-Positioning",
+  "Network Economies",
+  "Counter Positioning",
   "Switching Costs",
   "Branding",
   "Cornered Resource",
@@ -33,7 +34,7 @@ export const BusinessOverview: React.FC<BusinessOverviewProps> = ({ stock }) => 
     whatTheyDo: stock.businessOverview?.whatTheyDo || "",
     customers: stock.businessOverview?.customers || "",
     revenueBreakdown: stock.businessOverview?.revenueBreakdown || [],
-    moat: stock.businessOverview?.moat || MOAT_POWERS.map((name) => ({ name, description: "" })),
+    moat: stock.businessOverview?.moat || MOAT_POWERS.map((name) => ({ name, strength: null })),
     growthEngine: stock.businessOverview?.growthEngine || "",
   });
 
@@ -181,22 +182,53 @@ export const BusinessOverview: React.FC<BusinessOverviewProps> = ({ stock }) => 
       </Card>
 
       <Card className="p-6 bg-gradient-to-br from-card to-card/50">
-        <Label className="text-lg font-semibold mb-4 block">Moat (7 Powers)</Label>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="flex items-center justify-between mb-4">
+          <Label className="text-lg font-semibold">Moat (7 Powers)</Label>
+          {businessData.moat.some(p => p.strength) && (
+            <div className="text-sm text-muted-foreground">
+              Score: {businessData.moat.filter(p => p.strength === "High").length * 3 + 
+                      businessData.moat.filter(p => p.strength === "Normal").length * 2 + 
+                      businessData.moat.filter(p => p.strength === "Weak").length} / 21
+            </div>
+          )}
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {businessData.moat.map((power, idx) => (
-            <div key={idx} className="space-y-2">
-              <Label className="text-sm text-muted-foreground">{power.name}</Label>
-              <Textarea
-                value={power.description}
-                onChange={(e) => {
+            <div key={idx} className="space-y-2 p-4 rounded-lg border bg-card">
+              <Label className="text-sm font-medium">{power.name}</Label>
+              <ToggleGroup
+                type="single"
+                value={power.strength || ""}
+                onValueChange={(value) => {
+                  if (!editing) return;
                   const updated = [...businessData.moat];
-                  updated[idx].description = e.target.value;
+                  updated[idx].strength = value as "Weak" | "Normal" | "High" | null;
                   setBusinessData({ ...businessData, moat: updated });
                 }}
-                disabled={!editing}
-                className="bg-background"
-                placeholder={`Describe ${power.name}...`}
-              />
+                className="justify-start gap-1"
+              >
+                <ToggleGroupItem 
+                  value="Weak" 
+                  className="data-[state=on]:bg-destructive data-[state=on]:text-destructive-foreground"
+                  disabled={!editing}
+                >
+                  Weak
+                </ToggleGroupItem>
+                <ToggleGroupItem 
+                  value="Normal" 
+                  className="data-[state=on]:bg-yellow-500 data-[state=on]:text-yellow-950"
+                  disabled={!editing}
+                >
+                  Normal
+                </ToggleGroupItem>
+                <ToggleGroupItem 
+                  value="High" 
+                  className="data-[state=on]:bg-green-600 data-[state=on]:text-white"
+                  disabled={!editing}
+                >
+                  High
+                </ToggleGroupItem>
+              </ToggleGroup>
             </div>
           ))}
         </div>
