@@ -34,7 +34,7 @@ export const BusinessOverview: React.FC<BusinessOverviewProps> = ({ stock }) => 
     whatTheyDo: stock.businessOverview?.whatTheyDo || "",
     customers: stock.businessOverview?.customers || "",
     revenueBreakdown: stock.businessOverview?.revenueBreakdown || [],
-    moat: stock.businessOverview?.moat || MOAT_POWERS.map((name) => ({ name, strength: null })),
+    moat: stock.businessOverview?.moat || MOAT_POWERS.map((name) => ({ name, strength: null, explanation: "" })),
     growthEngine: stock.businessOverview?.growthEngine || "",
   });
 
@@ -229,6 +229,17 @@ export const BusinessOverview: React.FC<BusinessOverviewProps> = ({ stock }) => 
                   High
                 </ToggleGroupItem>
               </ToggleGroup>
+              <Textarea
+                value={power.explanation || ""}
+                onChange={(e) => {
+                  const updated = [...businessData.moat];
+                  updated[idx].explanation = e.target.value;
+                  setBusinessData({ ...businessData, moat: updated });
+                }}
+                disabled={!editing}
+                className="mt-2 min-h-[80px] bg-background text-xs"
+                placeholder="Why does this stock have this power?..."
+              />
             </div>
           ))}
         </div>
