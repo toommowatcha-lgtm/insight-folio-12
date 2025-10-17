@@ -1,3 +1,5 @@
+import { supabase } from "@/lib/supabaseClient"
+import { useEffect } from "react"
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, TrendingUp, TrendingDown } from "lucide-react";
