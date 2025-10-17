@@ -1,4 +1,4 @@
-import { supabase } from "/public/supabaseClient.js";  // ✅ ใช้ path ตรงนี้
+import { supabase } from "/public/supabaseClient.js";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, TrendingUp, TrendingDown } from "lucide-react";
@@ -13,54 +13,33 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useStocks } from "@/contexts/StockContext";
+import { Stock } from "@/types/stock";
 
 export default function Watchlist() {
   const navigate = useNavigate();
+  const { stocks, addStock } = useStocks();
   const [open, setOpen] = useState(false);
-  const [stocks, setStocks] = useState<any[]>([]);
   const [newStock, setNewStock] = useState({
     symbol: "",
     companyName: "",
     currentPrice: "",
   });
 
-  // ✅ โหลดข้อมูลจาก Supabase ตอนเริ่มต้น
-  useEffect(() => {
-    const fetchStocks = async () => {
-      const { data, error } = await supabase.from("stocks").select("*");
-      if (error) {
-        console.error("❌ Error fetching stocks:", error);
-      } else {
-        setStocks(data || []);
-      }
-    };
-    fetchStocks();
-  }, []);
-
-  // ✅ เพิ่มข้อมูลใหม่ลง Supabase
-  const handleAddStock = async () => {
+  const handleAddStock = () => {
     if (!newStock.symbol || !newStock.companyName || !newStock.currentPrice) return;
 
-    const { data, error } = await supabase
-      .from("stocks")
-      .insert([
-        {
-          symbol: newStock.symbol.toUpperCase(),
-          company_name: newStock.companyName,
-          current_price: parseFloat(newStock.currentPrice),
-          day_change: 0,
-        },
-      ])
-      .select();
+    const stock: Stock = {
+      id: Date.now().toString(),
+      symbol: newStock.symbol.toUpperCase(),
+      companyName: newStock.companyName,
+      currentPrice: parseFloat(newStock.currentPrice),
+      dayChange: 0,
+    };
 
-    if (error) {
-      console.error("❌ Error adding stock:", error);
-      alert("Error adding stock: " + error.message);
-    } else {
-      setStocks([...stocks, ...data]);
-      setNewStock({ symbol: "", companyName: "", currentPrice: "" });
-      setOpen(false);
-    }
+    addStock(stock);
+    setNewStock({ symbol: "", companyName: "", currentPrice: "" });
+    setOpen(false);
   };
 
   return (
@@ -149,27 +128,27 @@ export default function Watchlist() {
                   onClick={() => navigate(`/stock/${stock.id}`)}
                   className="border-b border-border hover:bg-muted/50 cursor-pointer transition-colors"
                 >
-                  <td className="p-4 font-bold text-primary">{stock.symbol}</td>
-                  <td className="p-4">{stock.company_name}</td>
+                  <td className="p-4">
+                    <div className="font-bold text-primary">{stock.symbol}</div>
+                  </td>
+                  <td className="p-4">{stock.companyName}</td>
                   <td className="p-4 text-right font-mono">
-                    ${stock.current_price?.toFixed(2)}
+                    ${stock.currentPrice.toFixed(2)}
                   </td>
                   <td className="p-4 text-right">
                     <div
                       className={`flex items-center justify-end gap-1 ${
-                        stock.day_change >= 0
-                          ? "text-success"
-                          : "text-destructive"
+                        stock.dayChange >= 0 ? "text-success" : "text-destructive"
                       }`}
                     >
-                      {stock.day_change >= 0 ? (
+                      {stock.dayChange >= 0 ? (
                         <TrendingUp className="h-4 w-4" />
                       ) : (
                         <TrendingDown className="h-4 w-4" />
                       )}
                       <span className="font-semibold">
-                        {stock.day_change >= 0 ? "+" : ""}
-                        {stock.day_change?.toFixed(2)}%
+                        {stock.dayChange >= 0 ? "+" : ""}
+                        {stock.dayChange.toFixed(2)}%
                       </span>
                     </div>
                   </td>
