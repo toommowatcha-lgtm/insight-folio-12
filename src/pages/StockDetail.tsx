@@ -8,11 +8,16 @@ import { Financials } from "@/components/stock/Financials";
 import { Valuation } from "@/components/stock/Valuation";
 import { Story } from "@/components/stock/Story";
 import { RiskAssessment } from "@/components/stock/RiskAssessment";
+import { useEffect } from "react";
 
 export default function StockDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { getStock } = useStocks();
+  const { getStock, refreshStocks } = useStocks();
+
+  useEffect(() => {
+    refreshStocks();
+  }, [id]);
 
   const stock = getStock(id || "");
 
