@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { useStocks } from "@/contexts/StockContext";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Layout } from "@/components/Layout";
 import {
   LineChart,
   Line,
@@ -28,6 +29,7 @@ export default function Compare() {
   const getChartData = () => {
     const periods: Record<string, any> = {};
 
+
     selectedStocks.forEach((stockId) => {
       const stock = stocks.find((s) => s.id === stockId);
       if (stock?.financials) {
@@ -46,7 +48,8 @@ export default function Compare() {
   const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))"];
 
   return (
-    <div className="space-y-6">
+    <Layout>
+      <div className="space-y-6">
       <div>
         <h1 className="text-4xl font-bold">Compare Stocks</h1>
         <p className="text-muted-foreground mt-2">
@@ -176,8 +179,9 @@ export default function Compare() {
               })}
             </tbody>
           </table>
-        </Card>
+      </Card>
       )}
     </div>
+    </Layout>
   );
 }

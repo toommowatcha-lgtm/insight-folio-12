@@ -8,6 +8,7 @@ import { Financials } from "@/components/stock/Financials";
 import { Valuation } from "@/components/stock/Valuation";
 import { Story } from "@/components/stock/Story";
 import { RiskAssessment } from "@/components/stock/RiskAssessment";
+import { Layout } from "@/components/Layout";
 import { useEffect } from "react";
 
 export default function StockDetail() {
@@ -23,14 +24,17 @@ export default function StockDetail() {
 
   if (!stock) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <p className="text-muted-foreground">Stock not found</p>
-      </div>
+      <Layout>
+        <div className="flex items-center justify-center h-96">
+          <p className="text-muted-foreground">Stock not found</p>
+        </div>
+      </Layout>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <Layout>
+      <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
           <ArrowLeft className="h-5 w-5" />
@@ -71,5 +75,6 @@ export default function StockDetail() {
         </TabsContent>
       </Tabs>
     </div>
+    </Layout>
   );
 }

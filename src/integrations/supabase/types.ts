@@ -27,6 +27,7 @@ export type Database = {
           stock_symbol: string
           tam: string | null
           updated_at: string | null
+          user_id: string | null
         }
         Insert: {
           business_model?: string | null
@@ -40,6 +41,7 @@ export type Database = {
           stock_symbol: string
           tam?: string | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Update: {
           business_model?: string | null
@@ -53,6 +55,7 @@ export type Database = {
           stock_symbol?: string
           tam?: string | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -75,6 +78,7 @@ export type Database = {
           revenue: number | null
           stock_symbol: string
           updated_at: string | null
+          user_id: string | null
         }
         Insert: {
           cost_of_revenue?: number | null
@@ -86,6 +90,7 @@ export type Database = {
           revenue?: number | null
           stock_symbol: string
           updated_at?: string | null
+          user_id?: string | null
         }
         Update: {
           cost_of_revenue?: number | null
@@ -97,6 +102,7 @@ export type Database = {
           revenue?: number | null
           stock_symbol?: string
           updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -116,6 +122,7 @@ export type Database = {
           stock_symbol: string
           type: string
           updated_at: string | null
+          user_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -124,6 +131,7 @@ export type Database = {
           stock_symbol: string
           type: string
           updated_at?: string | null
+          user_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -132,6 +140,7 @@ export type Database = {
           stock_symbol?: string
           type?: string
           updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -152,6 +161,7 @@ export type Database = {
           price: number | null
           symbol: string
           updated_at: string | null
+          user_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -161,6 +171,7 @@ export type Database = {
           price?: number | null
           symbol: string
           updated_at?: string | null
+          user_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -170,6 +181,7 @@ export type Database = {
           price?: number | null
           symbol?: string
           updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }

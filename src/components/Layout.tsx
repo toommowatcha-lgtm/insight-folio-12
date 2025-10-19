@@ -1,11 +1,27 @@
-import { Link, useLocation } from "react-router-dom";
-import { BarChart3, Plus, TrendingUp } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { BarChart3, Plus, TrendingUp, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
+  const navigate = useNavigate();
 
   const isActive = (path: string) => location.pathname === path;
+
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to sign out",
+        variant: "destructive",
+      });
+    } else {
+      navigate("/auth");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -17,7 +33,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 <TrendingUp className="h-6 w-6 text-primary-foreground" />
               </div>
               <span className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                AI Stock Dashboard
+                Insight Folio
               </span>
             </Link>
 
@@ -40,6 +56,10 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                   Compare
                 </Button>
               </Link>
+              <Button variant="ghost" size="sm" onClick={handleSignOut} className="gap-2">
+                <LogOut className="h-4 w-4" />
+                Sign Out
+              </Button>
             </nav>
           </div>
         </div>

@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Stock } from "@/types/stock";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { Session } from "@supabase/supabase-js";
 
 interface StockContextType {
   stocks: Stock[];
@@ -16,6 +17,21 @@ const StockContext = createContext<StockContextType | undefined>(undefined);
 
 export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [stocks, setStocks] = useState<Stock[]>([]);
+  const [session, setSession] = useState<Session | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const fetchStocks = async () => {
     try {
@@ -56,6 +72,15 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   const addStock = async (stock: Stock) => {
+    if (!session?.user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to add stocks",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('stocks')
@@ -64,7 +89,8 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             symbol: stock.symbol,
             name: stock.companyName,
             price: stock.currentPrice,
-            market: 'US', // default market
+            market: 'US',
+            user_id: session.user.id,
           }
         ])
         .select()
@@ -151,6 +177,8 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateBusinessOverview = async (symbol: string, data: any) => {
+    if (!session?.user) return;
+
     try {
       const { error: deleteError } = await supabase
         .from('business_overviews')
@@ -169,6 +197,7 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             revenue_segment: JSON.stringify(data.revenueBreakdown || []),
             moat: JSON.stringify(data.moat || []),
             growth_engine: data.growthEngine || '',
+            user_id: session.user.id,
           }
         ]);
 
@@ -183,6 +212,8 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateFinancials = async (symbol: string, financials: any[]) => {
+    if (!session?.user) return;
+
     try {
       const { error: deleteError } = await supabase
         .from('financials')
@@ -198,6 +229,7 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         cost_of_revenue: f.grossProfit ? f.revenue - f.grossProfit : null,
         net_profit: f.netIncome,
         eps: f.netIncome / (f.sharesOutstanding || 1),
+        user_id: session.user.id,
       }));
 
       const { error } = await supabase
@@ -215,8 +247,8 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateValuation = async (symbol: string, valuation: any) => {
-    // Valuation data can be stored as JSON in business_overviews or a separate table
-    // For now, we'll store it in business_overviews as tam field
+    if (!session?.user) return;
+
     try {
       const { error } = await supabase
         .from('business_overviews')
@@ -224,6 +256,7 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           {
             stock_symbol: symbol,
             tam: JSON.stringify(valuation),
+            user_id: session.user.id,
           }
         ], { onConflict: 'stock_symbol' });
 
@@ -238,8 +271,8 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateStory = async (symbol: string, story: any) => {
-    // Story data can be stored in a custom field or separate table
-    // For simplicity, storing as JSON in business_overviews
+    if (!session?.user) return;
+
     try {
       const { error } = await supabase
         .from('business_overviews')
@@ -247,6 +280,7 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           {
             stock_symbol: symbol,
             channel: JSON.stringify(story),
+            user_id: session.user.id,
           }
         ], { onConflict: 'stock_symbol' });
 
@@ -261,6 +295,8 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateRiskAssessment = async (symbol: string, riskData: any) => {
+    if (!session?.user) return;
+
     try {
       const { error: deleteError } = await supabase
         .from('risks')
@@ -270,10 +306,10 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (deleteError) console.error('Error deleting old risks:', deleteError);
 
       const riskRows = [
-        { stock_symbol: symbol, type: 'business', description: riskData.keyBusinessRisks || '' },
-        { stock_symbol: symbol, type: 'financial', description: riskData.financialRisks || '' },
-        { stock_symbol: symbol, type: 'management', description: riskData.managementRisks || '' },
-        { stock_symbol: symbol, type: 'macro', description: riskData.macroRisks || '' },
+        { stock_symbol: symbol, type: 'business', description: riskData.keyBusinessRisks || '', user_id: session.user.id },
+        { stock_symbol: symbol, type: 'financial', description: riskData.financialRisks || '', user_id: session.user.id },
+        { stock_symbol: symbol, type: 'management', description: riskData.managementRisks || '', user_id: session.user.id },
+        { stock_symbol: symbol, type: 'macro', description: riskData.macroRisks || '', user_id: session.user.id },
       ];
 
       const { error } = await supabase

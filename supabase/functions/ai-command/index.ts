@@ -1,42 +1,92 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+}
+
+const MAX_COMMAND_LENGTH = 500;
+const ALLOWED_OPERATIONS = ['insert', 'update', 'upsert'];
+const ALLOWED_TABLES = ['stocks', 'financials', 'business_overviews', 'risks'];
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const { command } = await req.json();
-    console.log('Received command:', command);
-
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    // Require authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // Create Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Get authenticated user
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: {
+          headers: { Authorization: authHeader },
+        },
+      }
+    );
 
-    // Use AI to parse the command
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Invalid token' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const requestBody = await req.json();
+    
+    // Validate request body
+    if (!requestBody.command || typeof requestBody.command !== 'string') {
+      return new Response(
+        JSON.stringify({ error: 'Invalid request: command required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const command = requestBody.command.trim();
+
+    // Validate command length
+    if (command.length > MAX_COMMAND_LENGTH) {
+      return new Response(
+        JSON.stringify({ error: 'Command too long' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!lovableApiKey || !supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Missing required environment variables');
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Call AI to parse command
+    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
+        'Authorization': `Bearer ${lovableApiKey}`,
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: 'google/gemini-2.5-flash',
         messages: [
           {
-            role: "system",
+            role: 'system',
             content: `You are a data management assistant. Parse user commands to determine database operations.
 Available tables: stocks, financials, business_overviews, risks.
 
@@ -49,142 +99,135 @@ Table schemas:
 Respond with structured data about the operation to perform.`
           },
           {
-            role: "user",
+            role: 'user',
             content: command
           }
         ],
         tools: [
           {
-            type: "function",
+            type: 'function',
             function: {
-              name: "execute_database_operation",
-              description: "Execute a database operation based on the user command",
+              name: 'execute_database_operation',
+              description: 'Execute a database operation based on the user command',
               parameters: {
-                type: "object",
+                type: 'object',
                 properties: {
                   operation: {
-                    type: "string",
-                    enum: ["insert", "update", "upsert"],
-                    description: "The database operation to perform"
+                    type: 'string',
+                    enum: ['insert', 'update', 'upsert'],
+                    description: 'The database operation to perform'
                   },
                   table: {
-                    type: "string",
-                    enum: ["stocks", "financials", "business_overviews", "risks"],
-                    description: "The table to operate on"
+                    type: 'string',
+                    enum: ['stocks', 'financials', 'business_overviews', 'risks'],
+                    description: 'The table to operate on'
                   },
                   data: {
-                    type: "object",
-                    description: "The data to insert or update"
+                    type: 'object',
+                    description: 'The data to insert or update'
                   },
-                  filter: {
-                    type: "object",
-                    description: "Filter conditions for update operations (e.g., {symbol: 'AAPL'})"
+                  filters: {
+                    type: 'object',
+                    description: 'Filter conditions for update operations (e.g., {symbol: "AAPL"})'
                   }
                 },
-                required: ["operation", "table", "data"],
-                additionalProperties: false
+                required: ['operation', 'table', 'data']
               }
             }
           }
         ],
-        tool_choice: { type: "function", function: { name: "execute_database_operation" } }
+        tool_choice: { type: 'function', function: { name: 'execute_database_operation' } }
       }),
     });
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      console.error("AI gateway error:", aiResponse.status, errorText);
       
       if (aiResponse.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), {
+        return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }), {
           status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
       
       if (aiResponse.status === 402) {
-        return new Response(JSON.stringify({ error: "Payment required. Please add credits to your workspace." }), {
+        return new Response(JSON.stringify({ error: 'Payment required. Please add credits to your workspace.' }), {
           status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
-      throw new Error("AI gateway error");
+      throw new Error('AI gateway error');
     }
 
     const aiData = await aiResponse.json();
-    console.log('AI response:', JSON.stringify(aiData, null, 2));
 
-    // Extract the tool call arguments
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) {
-      return new Response(JSON.stringify({ 
-        error: "Could not parse command. Please be more specific." 
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!aiData.choices?.[0]?.message?.tool_calls?.[0]) {
+      throw new Error('No tool call in AI response');
     }
 
+    const toolCall = aiData.choices[0].message.tool_calls[0];
     const args = JSON.parse(toolCall.function.arguments);
-    console.log('Parsed operation:', args);
 
-    const { operation, table, data, filter } = args;
+    const { operation, table, data, filters } = args;
+
+    // Validate AI output
+    if (!ALLOWED_OPERATIONS.includes(operation)) {
+      throw new Error('Operation not allowed');
+    }
+
+    if (!ALLOWED_TABLES.includes(table)) {
+      throw new Error('Table not allowed');
+    }
+
+    if (!data || typeof data !== 'object') {
+      throw new Error('Invalid data format');
+    }
+
+    // Add user_id to all operations
+    const dataWithUser = {
+      ...data,
+      user_id: user.id,
+    };
 
     let result;
-    let message = "";
-
-    // Execute the database operation
-    switch (operation) {
-      case "insert":
-        result = await supabase.from(table).insert(data).select();
-        if (result.error) throw result.error;
-        message = `Successfully added ${table.slice(0, -1)} record.`;
-        break;
-
-      case "update":
-        if (!filter) {
-          throw new Error("Filter required for update operations");
-        }
-        let query = supabase.from(table).update(data);
-        // Apply filters
-        for (const [key, value] of Object.entries(filter)) {
+    if (operation === 'insert') {
+      result = await supabase.from(table).insert(dataWithUser).select();
+    } else if (operation === 'update') {
+      let query = supabase.from(table).update(dataWithUser);
+      if (filters) {
+        Object.entries(filters).forEach(([key, value]) => {
           query = query.eq(key, value);
-        }
-        result = await query.select();
-        if (result.error) throw result.error;
-        message = `Successfully updated ${table.slice(0, -1)} record.`;
-        break;
-
-      case "upsert":
-        result = await supabase.from(table).upsert(data, {
-          onConflict: table === 'stocks' ? 'symbol' : 'id'
-        }).select();
-        if (result.error) throw result.error;
-        message = `Successfully saved ${table.slice(0, -1)} record.`;
-        break;
-
-      default:
-        throw new Error(`Unknown operation: ${operation}`);
+        });
+      }
+      // Ensure user can only update their own data
+      query = query.eq('user_id', user.id);
+      result = await query.select();
+    } else if (operation === 'upsert') {
+      result = await supabase.from(table).upsert(dataWithUser).select();
+    } else {
+      throw new Error(`Unsupported operation: ${operation}`);
     }
 
-    console.log('Database operation result:', result);
+    if (result.error) {
+      throw result.error;
+    }
 
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       success: true,
-      message,
-      data: result.data 
+      message: `Successfully ${operation}ed ${table} record.`,
+      data: result.data
     }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
-
   } catch (error) {
-    console.error('Error in ai-command function:', error);
-    return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : "Unknown error occurred" 
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error('[AI Command] Error:', error);
+    return new Response(
+      JSON.stringify({ error: 'Unable to process command. Please try again.' }), 
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   }
 });

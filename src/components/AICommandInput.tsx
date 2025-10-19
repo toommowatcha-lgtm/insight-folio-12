@@ -26,6 +26,17 @@ export const AICommandInput = () => {
     setIsProcessing(true);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        toast({
+          title: "Authentication Required",
+          description: "Please sign in to use AI commands.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke('ai-command', {
         body: { command: command.trim() }
       });

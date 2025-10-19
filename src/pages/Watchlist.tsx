@@ -1,5 +1,4 @@
-import { supabase } from "@/lib/supabaseClient";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, TrendingUp, TrendingDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useStocks } from "@/contexts/StockContext";
 import { Stock } from "@/types/stock";
+import { Layout } from "@/components/Layout";
 
 export default function Watchlist() {
   const navigate = useNavigate();
@@ -43,7 +43,8 @@ export default function Watchlist() {
   };
 
   return (
-    <div className="space-y-6">
+    <Layout>
+      <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-bold">Watchlist</h1>
@@ -159,5 +160,6 @@ export default function Watchlist() {
         </div>
       </Card>
     </div>
+    </Layout>
   );
 }
